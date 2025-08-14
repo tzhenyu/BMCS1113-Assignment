@@ -1,4 +1,4 @@
-name: Build All MASM ASM and Release
+name: Build All MASM ASM and Release Individually
 
 on:
   push:
@@ -44,13 +44,11 @@ jobs:
         prerelease: false
         body: "Automated build of all ASM programs."
 
-    - name: Upload all release assets as ZIP
+    - name: Upload each EXE individually
       shell: pwsh
       run: |
-        Compress-Archive -Path release\* -DestinationPath release\program-exes.zip
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: release\program-exes.zip
-        asset_name: program-exes.zip
-        asset_content_type: application/zip
+        $releaseUrl = '${{ steps.create_release.outputs.upload_url }}'
+        Get-ChildItem -Path release -Filter *.exe | ForEach-Object {
+            Write-Host "Uploading $($_.Name)..."
+            gh release upload $releaseUrl $_.FullName --clobber
+        }
