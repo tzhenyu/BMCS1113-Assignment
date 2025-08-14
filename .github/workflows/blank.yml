@@ -23,16 +23,20 @@ jobs:
       run: |
         # Create release folder
         New-Item -ItemType Directory -Force -Path release
-
+    
         $asmFile = "BMCS1113-Assignment/main.asm"
         $exeName = "main.exe"
+    
+        # Load Visual Studio environment (msbuild sets up ml.exe and link.exe)
+        & "${env:VS140COMNTOOLS}..\..\VC\vcvarsall.bat" x86
+    
         Write-Host "Compiling $asmFile..."
         ml /c /coff $asmFile
         link /SUBSYSTEM:CONSOLE "main.obj" Irvine32.lib /OUT:"release/$exeName"
-
+    
         # List release folder contents
         Get-ChildItem -Path release
-
+        
     - name: Create GitHub Release
       shell: pwsh
       run: |
