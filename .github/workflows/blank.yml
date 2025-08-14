@@ -30,7 +30,7 @@ jobs:
             $exeName = "$($_.BaseName).exe"
             Write-Host "Compiling $asmFile..."
             ml /c /coff $asmFile
-            link /SUBSYSTEM:CONSOLE "$($_.BaseName).obj" Irvine32.lib /OUT:"release\$exeName"
+            link /SUBSYSTEM:CONSOLE "$($_.BaseName).obj" Irvine32.lib /OUT:"release/$exeName"
         }
 
         # List release folder contents
@@ -40,5 +40,11 @@ jobs:
       shell: pwsh
       run: |
         $tag = "v1.0.$($env:GITHUB_RUN_NUMBER)"
-        # Create the release and upload all EXEs from release/
-        gh release create $tag release\* --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of all ASM programs." --draft false --prerelease false
+        # Get all EXE files from release folder
+        $exeFiles = Get-ChildItem -Path release -Filter *.exe | ForEach-Object { $_.FullName }
+
+        if ($exeFiles.Count -eq 0) {
+            Write-Host "No .exe files found. Skipping release."
+        } else {
+            gh release create $tag $exeFiles --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of all ASM programs." --draft false --prerelease false
+        }
