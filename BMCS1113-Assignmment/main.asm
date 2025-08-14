@@ -13,7 +13,14 @@ promptPayment BYTE "Select payment method: 1. Credit Card  2. Cash | Your Choice
 promptSuccess BYTE "Payment successful. Flight booked!",0
 promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
 promptInvalid BYTE "Invalid input. Try again.",0
+promptPay BYTE "Pay Amount : ",0
+promptChange BYTE "Your change is: ",0
+promptNotEnough BYTE "Not enough balance. Please enter a sufficient amount.",0
 newline BYTE 13,10,0
+
+totalBill DWORD 100 ; Example total bill amount
+paymentAmount DWORD ?
+change DWORD ?
 
 .code
 main PROC
@@ -35,11 +42,41 @@ mainLoop:
     call WriteString
     jmp mainLoop
 
+
 payment_ok:
+    ; Ask for payment amount, repeat if not enough
+getPayment:
+    mov edx, OFFSET promptPay
+    call WriteString
+    call ReadInt
+    mov paymentAmount, eax
+    mov eax, paymentAmount
+    cmp eax, totalBill
+    jl not_enough_balance
+    ; Calculate change: change = paymentAmount - totalBill
+    sub eax, totalBill
+    mov change, eax
+    ; Show change
+    mov edx, OFFSET promptChange
+    call WriteString
+    mov eax, change
+    call WriteInt
+    mov edx, OFFSET newline
+    call WriteString
+
     mov edx, OFFSET promptSuccess
     call WriteString
     mov edx, OFFSET newline
     call WriteString
+
+    jmp askAnother
+
+not_enough_balance:
+    mov edx, OFFSET promptNotEnough
+    call WriteString
+    mov edx, OFFSET newline
+    call WriteString
+    jmp getPayment
 
     ; --- Book Another Flight Module ---
 askAnother:
