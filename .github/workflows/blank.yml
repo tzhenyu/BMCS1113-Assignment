@@ -1,17 +1,16 @@
-name: Build MASM Assembly
+name: Build MASM Assembly and Release
 
 on:
   push:
     branches:
       - main
-  pull_request:
 
 jobs:
-  build:
+  build-and-release:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v3
 
     - name: Set up Visual Studio tools
@@ -19,9 +18,27 @@ jobs:
 
     - name: Assemble and link ASM
       run: |
-        REM Change "main.asm" to your ASM file
-        ml /c /coff main.asm
+        REM Replace program.asm with your ASM file
+        ml /c /coff program.asm
         link /SUBSYSTEM:CONSOLE program.obj Irvine32.lib
+        REM Create output folder for release
+        mkdir release
+        move program.exe release\program.exe
 
-    - name: List output
-      run: dir *.exe
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      with:
+        tag_name: v1.0.${{ github.run_number }}
+        release_name: MASM Build ${{ github.run_number }}
+        draft: false
+        prerelease: false
+        body: "Automated build of program.exe from ASM."
+
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release\program.exe
+        asset_name: program.exe
+        asset_content_type: application/octet-stream
