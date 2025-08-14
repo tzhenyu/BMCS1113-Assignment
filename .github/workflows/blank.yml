@@ -3,7 +3,7 @@ name: Build All MASM ASM and Release Individually
 on:
   push:
     branches:
-      - master
+      - master   # change to your default branch
 
 jobs:
   build-and-release:
@@ -38,6 +38,7 @@ jobs:
       id: create_release
       uses: actions/create-release@v1
       with:
+        token: ${{ secrets.GITHUB_TOKEN }}
         tag_name: v1.0.${{ github.run_number }}
         release_name: MASM Build ${{ github.run_number }}
         draft: false
