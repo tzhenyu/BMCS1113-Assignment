@@ -3,11 +3,13 @@ name: Build All MASM ASM and Release Individually
 on:
   push:
     branches:
-      - master   # change to your default branch
+      - master
 
 jobs:
   build-and-release:
     runs-on: windows-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - name: Checkout repository
@@ -16,13 +18,13 @@ jobs:
     - name: Set up Visual Studio tools
       uses: microsoft/setup-msbuild@v1
 
-    - name: Assemble and link all ASM files (PowerShell)
+    - name: Assemble and link all ASM files
       shell: pwsh
       run: |
         # Create release folder
         New-Item -ItemType Directory -Force -Path release
 
-        # Loop through all .asm files in repo root
+        # Compile all .asm files
         Get-ChildItem -Path . -Filter *.asm | ForEach-Object {
             $asmFile = $_.FullName
             $exeName = "$($_.BaseName).exe"
@@ -34,22 +36,15 @@ jobs:
         # List release folder contents
         Get-ChildItem -Path release
 
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag_name: v1.0.${{ github.run_number }}
-        release_name: MASM Build ${{ github.run_number }}
-        draft: false
-        prerelease: false
-        body: "Automated build of all ASM programs."
-
-    - name: Upload each EXE individually
+    - name: Authenticate GitHub CLI
       shell: pwsh
       run: |
-        $releaseUrl = '${{ steps.create_release.outputs.upload_url }}'
-        Get-ChildItem -Path release -Filter *.exe | ForEach-Object {
-            Write-Host "Uploading $($_.Name)..."
-            gh release upload $releaseUrl $_.FullName --clobber
-        }
+        echo $env:GITHUB_TOKEN | gh auth login --with-token
+
+    - name: Create GitHub Release
+      id: create_release
+      shell: pwsh
+      run: |
+        $tag = "v1.0.$($env:GITHUB_RUN_NUMBER)"
+        $release = gh release create $tag release/* --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of all ASM programs." --draft false --prerelease false
+        Write-Host "Release created: $tag"
