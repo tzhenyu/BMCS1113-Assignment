@@ -1,9 +1,9 @@
-name: Build MASM Assembly and Release
+name: Build All MASM ASM and Release
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build-and-release:
@@ -16,14 +16,23 @@ jobs:
     - name: Set up Visual Studio tools
       uses: microsoft/setup-msbuild@v1
 
-    - name: Assemble and link ASM
+    - name: Assemble and link all ASM files (PowerShell)
+      shell: pwsh
       run: |
-        REM Replace main.asm with your ASM file
-        ml /c /coff main.asm
-        link /SUBSYSTEM:CONSOLE program.obj Irvine32.lib
-        REM Create output folder for release
-        mkdir release
-        move main.exe release\main.exe
+        # Create release folder
+        New-Item -ItemType Directory -Force -Path release
+
+        # Loop through all .asm files in repo root
+        Get-ChildItem -Path . -Filter *.asm | ForEach-Object {
+            $asmFile = $_.FullName
+            $exeName = "$($_.BaseName).exe"
+            Write-Host "Compiling $asmFile..."
+            ml /c /coff $asmFile
+            link /SUBSYSTEM:CONSOLE "$($_.BaseName).obj" Irvine32.lib /OUT:"release\$exeName"
+        }
+
+        # List release folder contents
+        Get-ChildItem -Path release
 
     - name: Create GitHub Release
       id: create_release
@@ -33,12 +42,15 @@ jobs:
         release_name: MASM Build ${{ github.run_number }}
         draft: false
         prerelease: false
-        body: "Automated build of program.exe from ASM."
+        body: "Automated build of all ASM programs."
 
-    - name: Upload release asset
+    - name: Upload all release assets as ZIP
+      shell: pwsh
+      run: |
+        Compress-Archive -Path release\* -DestinationPath release\program-exes.zip
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: release\program.exe
-        asset_name: program.exe
-        asset_content_type: application/octet-stream
+        asset_path: release\program-exes.zip
+        asset_name: program-exes.zip
+        asset_content_type: application/zip
