@@ -3,7 +3,7 @@ name: Build All MASM ASM and Release Individually
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   build-and-release:
