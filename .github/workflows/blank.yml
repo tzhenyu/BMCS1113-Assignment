@@ -36,15 +36,9 @@ jobs:
         # List release folder contents
         Get-ChildItem -Path release
 
-    - name: Authenticate GitHub CLI
-      shell: pwsh
-      run: |
-        echo $env:GITHUB_TOKEN | gh auth login --with-token
-
-    - name: Create GitHub Release
-      id: create_release
+    - name: Create GitHub Release with individual EXEs
       shell: pwsh
       run: |
         $tag = "v1.0.$($env:GITHUB_RUN_NUMBER)"
-        $release = gh release create $tag release/* --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of all ASM programs." --draft false --prerelease false
-        Write-Host "Release created: $tag"
+        # Create the release and upload all EXEs from release/
+        gh release create $tag release\* --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of all ASM programs." --draft false --prerelease false
