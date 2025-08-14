@@ -18,12 +18,12 @@ jobs:
 
     - name: Assemble and link ASM
       run: |
-        REM Replace program.asm with your ASM file
-        ml /c /coff program.asm
+        REM Replace main.asm with your ASM file
+        ml /c /coff main.asm
         link /SUBSYSTEM:CONSOLE program.obj Irvine32.lib
         REM Create output folder for release
         mkdir release
-        move program.exe release\program.exe
+        move main.exe release\main.exe
 
     - name: Create GitHub Release
       id: create_release
