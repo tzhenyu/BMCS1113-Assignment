@@ -1,4 +1,4 @@
-name: Build All MASM ASM and Release Individually
+name: Build MASM ASM and Release Individually
 
 on:
   push:
@@ -18,34 +18,28 @@ jobs:
     - name: Set up Visual Studio tools
       uses: microsoft/setup-msbuild@v1
 
-    - name: Assemble and link all ASM files
+    - name: Assemble and link main.asm
       shell: pwsh
       run: |
         # Create release folder
         New-Item -ItemType Directory -Force -Path release
-    
-        # Compile all .asm files recursively
-        Get-ChildItem -Path . -Filter *.asm -Recurse | ForEach-Object {
-            $asmFile = $_.FullName
-            $exeName = "$($_.BaseName).exe"
-            Write-Host "Compiling $asmFile..."
-            ml /c /coff $asmFile
-            link /SUBSYSTEM:CONSOLE "$($_.BaseName).obj" Irvine32.lib /OUT:"release/$exeName"
-        }
+
+        $asmFile = "BMCS1113-Assignment/main.asm"
+        $exeName = "main.exe"
+        Write-Host "Compiling $asmFile..."
+        ml /c /coff $asmFile
+        link /SUBSYSTEM:CONSOLE "main.obj" Irvine32.lib /OUT:"release/$exeName"
 
         # List release folder contents
         Get-ChildItem -Path release
 
-    
-    - name: Create GitHub Release with individual EXEs
+    - name: Create GitHub Release
       shell: pwsh
       run: |
         $tag = "v1.0.$($env:GITHUB_RUN_NUMBER)"
-        # Get all EXE files from release folder
-        $exeFiles = Get-ChildItem -Path release -Filter *.exe | ForEach-Object { $_.FullName }
-
-        if ($exeFiles.Count -eq 0) {
-            Write-Host "No .exe files found. Skipping release."
+        $exeFile = "release/main.exe"
+        if (Test-Path $exeFile) {
+            gh release create $tag $exeFile --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of main.asm"
         } else {
-            gh release create $tag $exeFiles --title "MASM Build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build of all ASM programs." --draft false --prerelease false
+            Write-Host "No .exe file found. Skipping release."
         }
