@@ -60,6 +60,138 @@ menuLine11  DB "Please select an option from the menu above.",0
 ; Code Section
 ; ============================================================
 .code
+; YANZHE PART
+; --- Step 1: Select Flight ---
+FlightMenu:
+    mov edx, OFFSET menuFlight
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je ChooseMAS
+    cmp eax, 2
+    je ChooseAA
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp FlightMenu
+
+ChooseMAS:
+    mov selectedFlight, 1
+    jmp TripMenu
+
+ChooseAA:
+    mov selectedFlight, 2
+    jmp TripMenu
+
+; --- Step 2: Select Trip Type ---
+TripMenu:
+    mov edx, OFFSET menuTrip
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je OneWay
+    cmp eax, 2
+    je TwoWay
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp TripMenu
+
+OneWay:
+    mov selectedTrip, 1
+    jmp ShowBooking
+
+TwoWay:
+    mov selectedTrip, 2
+    jmp ShowBooking
+
+; --- Show Booking Confirmation ---
+ShowBooking:
+    mov edx, OFFSET confirmMsg
+    call WriteString
+
+    mov eax, selectedFlight
+    cmp eax, 1
+    je ShowMAS
+    cmp eax, 2
+    je ShowAA
+
+ShowMAS:
+    mov edx, OFFSET MASdepart
+    call WriteString
+    mov eax, selectedTrip
+    cmp eax, 2
+    jne ContinueToTicket
+    mov edx, OFFSET MASreturn
+    call WriteString
+    jmp ContinueToTicket
+
+ShowAA:
+    mov edx, OFFSET AAdDepart
+    call WriteString
+    mov eax, selectedTrip
+    cmp eax, 2
+    jne ContinueToTicket
+    mov edx, OFFSET AAdReturn
+    call WriteString
+    jmp ContinueToTicket
+
+; --- Step 3: Select Ticket Class ---
+ContinueToTicket:
+    mov edx, OFFSET menuClass
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je ClassEconomy
+    cmp eax, 2
+    je ClassBusiness
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp ContinueToTicket
+
+ClassEconomy:
+    mov ticketCost, 500
+    jmp InsuranceMenu
+
+ClassBusiness:
+    mov ticketCost, 1200
+    jmp InsuranceMenu
+
+; --- Step 4: Insurance ---
+InsuranceMenu:
+    mov edx, OFFSET menuInsure
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je AddInsurance
+    cmp eax, 2
+    je SkipInsurance
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp InsuranceMenu
+
+AddInsurance:
+    add ticketCost, 100
+    jmp ShowTotal
+
+SkipInsurance:
+    jmp ShowTotal
+
+; --- Show Total ---
+ShowTotal:
+    mov edx, OFFSET totalMsg
+    call WriteString
+    mov eax, ticketCost
+    call WriteDec
+    call Crlf
+
+
 
 ; ------------------------------------------------------------
 ; Program Entry Point
@@ -286,3 +418,4 @@ waitLoop:
 waitEnter ENDP
 
 END main
+
