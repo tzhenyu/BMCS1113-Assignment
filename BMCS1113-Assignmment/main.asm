@@ -5,6 +5,23 @@ INCLUDE Irvine32.inc
 ; Data Section
 ; ============================================================
 .data
+; ADAM PART
+; Payment and booking variables
+paymentMethod BYTE ? ; 1=Credit Card, 2=Cash
+bookAnother BYTE ?   ; 1=Yes, 0=No
+promptPayment BYTE "Select payment method: 1. Credit Card  2. Cash | Your Choice: ",0
+promptSuccess BYTE "Payment successful. Flight booked!",0
+promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
+promptInvalid BYTE "Invalid input. Try again.",0
+promptPay BYTE "Pay Amount : ",0
+promptChange BYTE "Your change is: ",0
+promptNotEnough BYTE "Not enough balance. Please enter a sufficient amount.",0
+newline BYTE 13,10,0
+
+totalBill DWORD 100 ; Example total bill amount
+paymentAmount DWORD ?
+change DWORD ?
+
   ; GUAN RONG PART
     ; Constants
     MAX_PASSENGERS = 20
@@ -99,6 +116,82 @@ menuLine11  DB "Please select an option from the menu above.",0
 ; Code Section
 ; ============================================================
 .code
+; ADAM PART
+;main PROC
+;    ; Main booking/payment loop
+;mainLoop:
+;    ; --- Payment Module ---
+;    mov edx, OFFSET promptPayment
+;    call WriteString
+;    call ReadInt
+;    mov paymentMethod, al
+;    cmp al, 1
+;    je payment_ok
+;    cmp al, 2
+;    je payment_ok
+;    ; Invalid input
+;    mov edx, OFFSET promptInvalid
+;    call WriteString
+;    mov edx, OFFSET newline
+;    call WriteString
+;    jmp mainLoop
+
+
+payment_ok:
+    ; Ask for payment amount, repeat if not enough
+getPayment:
+    mov edx, OFFSET promptPay
+    call WriteString
+    call ReadInt
+    mov paymentAmount, eax
+    mov eax, paymentAmount
+    cmp eax, totalBill
+    jl not_enough_balance
+    ; Calculate change: change = paymentAmount - totalBill
+    sub eax, totalBill
+    mov change, eax
+    ; Show change
+    mov edx, OFFSET promptChange
+    call WriteString
+    mov eax, change
+    call WriteInt
+    mov edx, OFFSET newline
+    call WriteString
+
+    mov edx, OFFSET promptSuccess
+    call WriteString
+    mov edx, OFFSET newline
+    call WriteString
+
+    jmp askAnother
+
+not_enough_balance:
+    mov edx, OFFSET promptNotEnough
+    call WriteString
+    mov edx, OFFSET newline
+    call WriteString
+    jmp getPayment
+
+    ; --- Book Another Flight Module ---
+askAnother:
+    mov edx, OFFSET promptAnother
+    call WriteString
+    call ReadInt
+    mov bookAnother, al
+    cmp al, 1
+    je mainLoop
+    cmp al, 2
+    je exitApp
+    ; Invalid input
+    mov edx, OFFSET promptInvalid
+    call WriteString
+    mov edx, OFFSET newline
+    call WriteString
+    jmp askAnother
+
+exitApp:
+    INVOKE ExitProcess, 0
+=======
 
 ;main PROC
 ;    call CustomerIdModule
