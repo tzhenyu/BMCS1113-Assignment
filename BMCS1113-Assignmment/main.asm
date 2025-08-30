@@ -5,151 +5,176 @@ TITLE Flight Booking System (BookFlight.asm)
 INCLUDE Irvine32.inc
 
 .data
-; Flight info table
-flightTable BYTE "--------------------------------------------------",0Dh,0Ah,
-             "| Airline    | Origin | Destination | Date       |",0Dh,0Ah,
-             "--------------------------------------------------",0Dh,0Ah,
-             "| 1. MAS     | KUL    | BKK         | 20/08/2025 |",0Dh,0Ah,
-             "| 2. AIRASIA | PEN    | SIN         | 21/08/2025 |",0Dh,0Ah,
-             "--------------------------------------------------",0
+; --- Menu Display Lines ---
+menuLine1   BYTE "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
+menuLine2   BYTE "| ID  | Airline              | Departure      | Destination    | Departure Date | Trip Type | Return Date| Price (MYR) |",0
+menuLine3   BYTE "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
+menuLine4   BYTE "| [1] | SkyJet Airlines      | Kuala Lumpur   | Singapore      | 2025-08-15     |  One-way  |     N/A    |      525    |",0
+menuLine5   BYTE "| [2] | Oceanic Air          | Penang         | Bangkok        | 2025-08-16     |  Two-way  | 2025-08-21 |     2700    |",0
+menuLine6   BYTE "| [3] | CloudNine Airways    | Johor Bahru    | Hong Kong      | 2025-08-17     |  Two-way  | 2025-08-22 |     7500    |",0
+menuLine7   BYTE "| [4] | Eastern Horizon Air  | Kota Kinabalu  | Manila         | 2025-08-18     |  One-way  |     N/A    |     3300    |",0
+menuLine8   BYTE "| [5] | Jet2 Holiday         | Kuching        | Jakarta        | 2025-08-19     |  Two-way  | 2025-08-24 |     5400    |",0
+menuLine9   BYTE "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
 
-; Menus
-menuFlight  BYTE "Select a flight:",0Dh,0Ah,
-             "1. MAS (KUL -> BKK, 20/08/2025)",0Dh,0Ah,
-             "2. AirAsia (PEN -> SIN, 21/08/2025)",0Dh,0Ah,
-             "Choice: ",0
+; --- Module 3 / 4 variables ---
+selectedFlight BYTE ?
+selectedTrip   BYTE ?       ; 1 = One-way, 2 = Two-way
+ticketCost     DWORD ?
+insuranceCost  DWORD ?
 
-menuTrip    BYTE 0Dh,0Ah,"Select Trip Type:",0Dh,0Ah,
-             "1. One-way",0Dh,0Ah,
-             "2. Two-way",0Dh,0Ah,
-             "Choice: ",0
+menuFlight     BYTE "Select flight [1-5]: ",0
+menuTrip       BYTE "Select trip type: 1=One-way 2=Two-way : ",0
+menuClass      BYTE "Select class: 1=Economy 2=Business : ",0
+menuInsure     BYTE "Add insurance? 1=Yes 2=No : ",0
+confirmMsg     BYTE "Booking Confirmation:",0
+totalMsg       BYTE "Total ticket cost: RM",0
+invalidMsg     BYTE "Invalid input! Please try again.",0
 
-menuClass   BYTE 0Dh,0Ah,"Select Ticket Class:",0Dh,0Ah,
-             "1. Economy (RM500)",0Dh,0Ah,
-             "2. Business (RM1200)",0Dh,0Ah,
-             "Choice: ",0
-
-menuInsure  BYTE 0Dh,0Ah,"Add Insurance (RM100)?",0Dh,0Ah,
-             "1. Yes",0Dh,0Ah,
-             "2. No",0Dh,0Ah,
-             "Choice: ",0
-
-; Messages
-confirmMsg  BYTE 0Dh,0Ah,"Booking Confirmed:",0Dh,0Ah,0
-totalMsg    BYTE 0Dh,0Ah,"Total Ticket Cost: RM",0
-
-; Flight details
-MASdepart   BYTE "Departure: MAS     | KUL -> BKK | 20/08/2025",0Dh,0Ah,0
-MASreturn   BYTE "Return    : MAS     | BKK -> KUL | 25/08/2025",0Dh,0Ah,0
-
-AAdDepart   BYTE "Departure: AIRASIA | PEN -> SIN | 21/08/2025",0Dh,0Ah,0
-AAdReturn   BYTE "Return    : AIRASIA | SIN -> PEN | 26/08/2025",0Dh,0Ah,0
-
-invalidMsg  BYTE "Invalid choice. Try again.",0Dh,0Ah,0
-
-; Variables
-selectedFlight DWORD 0   ; 1 = MAS, 2 = AirAsia
-selectedTrip   DWORD 0   ; 1 = One-way, 2 = Two-way
-ticketCost     DWORD 0   ; final cost
+MASdepart      BYTE "MAS Departure: Kuala Lumpur",0
+MASreturn      BYTE "MAS Return: Singapore",0
+AAdDepart      BYTE "AA Departure: Penang",0
+AAdReturn      BYTE "AA Return: Bangkok",0
 
 .code
+
+; ------------------------------------------------------------
+; MAIN ENTRY POINT
+; ------------------------------------------------------------
 main PROC
-    ; Show flight table
-    mov edx, OFFSET flightTable
+    ; Display menu
+    mov edx, OFFSET menuLine1
     call WriteString
     call Crlf
+    mov edx, OFFSET menuLine2
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine3
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine4
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine5
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine6
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine7
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine8
+    call WriteString
+    call Crlf
+    mov edx, OFFSET menuLine9
+    call WriteString
+    call Crlf
+    call Crlf
 
-; --- Step 1: Select Flight ---
+    ; Call booking modules
+    call Module3_FlightTrip
+    call Module4_ClassInsurance
+
+    INVOKE ExitProcess,0
+main ENDP
+
+; ------------------------------------------------------------
+; Module 3: Flight selection & trip type
+; ------------------------------------------------------------
+Module3_FlightTrip PROC
 FlightMenu:
     mov edx, OFFSET menuFlight
     call WriteString
     call ReadInt
+    mov selectedFlight, al        ; store flight choice
 
-    cmp eax, 1
-    je ChooseMAS
-    cmp eax, 2
-    je ChooseAA
+    cmp al, 1
+    jb InvalidFlight
+    cmp al, 5
+    ja InvalidFlight
+    jmp TripMenuLabel
 
+InvalidFlight:
     mov edx, OFFSET invalidMsg
     call WriteString
+    call Crlf
     jmp FlightMenu
 
-ChooseMAS:
-    mov selectedFlight, 1
-    jmp TripMenu
-
-ChooseAA:
-    mov selectedFlight, 2
-    jmp TripMenu
-
-; --- Step 2: Select Trip Type ---
-TripMenu:
+TripMenuLabel:
     mov edx, OFFSET menuTrip
     call WriteString
     call ReadInt
+    mov selectedTrip, al          ; store trip type
 
-    cmp eax, 1
+    cmp al, 1
     je OneWay
-    cmp eax, 2
+    cmp al, 2
     je TwoWay
 
     mov edx, OFFSET invalidMsg
     call WriteString
-    jmp TripMenu
+    call Crlf
+    jmp TripMenuLabel
 
 OneWay:
-    mov selectedTrip, 1
     jmp ShowBooking
 
 TwoWay:
-    mov selectedTrip, 2
     jmp ShowBooking
 
-; --- Show Booking Confirmation ---
 ShowBooking:
     mov edx, OFFSET confirmMsg
     call WriteString
+    call Crlf
 
-    mov eax, selectedFlight
-    cmp eax, 1
-    je ShowMAS
-    cmp eax, 2
-    je ShowAA
+    mov al, selectedFlight
+    cmp al, 1
+    je Flight1
+    cmp al, 2
+    je Flight2
+    jmp EndModule3
 
-ShowMAS:
+Flight1:
     mov edx, OFFSET MASdepart
     call WriteString
-    mov eax, selectedTrip
-    cmp eax, 2
-    jne ContinueToTicket
+    call Crlf
+    cmp selectedTrip, 2
+    jne EndModule3
     mov edx, OFFSET MASreturn
     call WriteString
-    jmp ContinueToTicket
+    call Crlf
+    jmp EndModule3
 
-ShowAA:
+Flight2:
     mov edx, OFFSET AAdDepart
     call WriteString
-    mov eax, selectedTrip
-    cmp eax, 2
-    jne ContinueToTicket
+    call Crlf
+    cmp selectedTrip, 2
+    jne EndModule3
     mov edx, OFFSET AAdReturn
     call WriteString
-    jmp ContinueToTicket
+    call Crlf
 
-; --- Step 3: Select Ticket Class ---
-ContinueToTicket:
+EndModule3:
+    ret
+Module3_FlightTrip ENDP
+
+; ------------------------------------------------------------
+; Module 4: Ticket Class & Insurance
+; ------------------------------------------------------------
+Module4_ClassInsurance PROC
+ClassMenu:
     mov edx, OFFSET menuClass
     call WriteString
     call ReadInt
-
     cmp eax, 1
     je ClassEconomy
     cmp eax, 2
     je ClassBusiness
-
     mov edx, OFFSET invalidMsg
     call WriteString
-    jmp ContinueToTicket
+    call Crlf
+    jmp ClassMenu
 
 ClassEconomy:
     mov ticketCost, 500
@@ -159,37 +184,34 @@ ClassBusiness:
     mov ticketCost, 1200
     jmp InsuranceMenu
 
-; --- Step 4: Insurance ---
 InsuranceMenu:
     mov edx, OFFSET menuInsure
     call WriteString
     call ReadInt
-
     cmp eax, 1
     je AddInsurance
     cmp eax, 2
     je SkipInsurance
-
     mov edx, OFFSET invalidMsg
     call WriteString
+    call Crlf
     jmp InsuranceMenu
 
 AddInsurance:
     add ticketCost, 100
+    mov insuranceCost, 100
     jmp ShowTotal
 
 SkipInsurance:
-    jmp ShowTotal
+    mov insuranceCost, 0
 
-; --- Show Total ---
 ShowTotal:
     mov edx, OFFSET totalMsg
     call WriteString
     mov eax, ticketCost
     call WriteDec
     call Crlf
-
-    exit
-main ENDP
+    ret
+Module4_ClassInsurance ENDP
 
 END main
