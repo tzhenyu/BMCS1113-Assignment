@@ -1,9 +1,9 @@
-
 INCLUDE Irvine32.inc
 
 ; ============================================================
 ; Data Section
 ; ============================================================
+
 .data
 ; ADAM PART
 ; Payment and booking variables
@@ -59,6 +59,9 @@ change DWORD ?
     total REAL8 ?
     discountedTotal REAL8 ?
 
+; ============================================================
+; ZHEN YU
+; ============================================================
 ; --- User State Variables ---
 currentUser          BYTE 0      ; Tracks the currently logged-in user (0 = none, 1 = user1, 2 = user2)
 currentPrice         WORD 0      ; Stores the price of the selected trip
@@ -111,93 +114,439 @@ menuLine10  DB "Select [0] to log out.",0
 menuLine11  DB "Please select an option from the menu above.",0
 
 ; ============================================================
+; YAN ZHE
+; ============================================================
+; Variables
+selectedFlight DWORD 0   ; 1 = MAS, 2 = AirAsia
+selectedTrip   DWORD 0   ; 1 = One-way, 2 = Two-way
+ticketCost     DWORD 0   ; final cost
+
+
+; ============================================================
+; GUAN RONG
+; ============================================================
+    ; Constants
+    MAX_PASSENGERS = 20
+    NAME_SIZE = 50
+    PASSPORT_SIZE = 20
+    CUSTOMER_ID_SIZE = 10
+
+    ; Module 5 Data
+    promptPax      BYTE "Number of passengers (1-20): ", 0
+    promptName     BYTE "Passenger name: ", 0
+    promptPassport BYTE "Passport number: ", 0
+    promptCustomer BYTE "Customer ID (C12345 format): ", 0
+    errPaxMsg      BYTE "Invalid input. Please enter 1-20: ", 0
+    
+    ; Passenger Data
+    pax DWORD ?
+    customerId BYTE CUSTOMER_ID_SIZE DUP(?)
+    passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
+    passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
+    isMember DWORD 0  ; 0 = not member, 1 = member
+
+    ; Module 6 Data
+    summaryTitle BYTE "----- Booking Summary -----",0Dh,0Ah,0
+    memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
+    memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
+    normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
+    priceLabel   BYTE "Total Price: RM",0
+    ;newline      BYTE 0Dh,0Ah,0
+    passengerHeader BYTE "Passenger Details:",0Dh,0Ah,0
+    passengerLine BYTE "Name: ",0
+    passportLine BYTE "Passport: ",0
+    separatorLine BYTE "-----------------------------",0Dh,0Ah,0
+
+    ; Pricing
+    basePrice REAL8 199.99
+    discount REAL8 0.15
+    total REAL8 ?
+    discountedTotal REAL8 ?
+
+
+; ============================================================
+; ADAM
+; ============================================================
+; Payment and booking variables
+paymentMethod BYTE ? ; 1=Credit Card, 2=Cash
+bookAnother BYTE ?   ; 1=Yes, 0=No
+promptPayment BYTE "Select payment method: 1. Credit Card  2. Cash | Your Choice: ",0
+promptSuccess BYTE "Payment successful. Flight booked!",0
+promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
+promptInvalid BYTE "Invalid input. Try again.",0
+promptPay BYTE "Pay Amount : ",0
+promptChange BYTE "Your change is: ",0
+promptNotEnough BYTE "Not enough balance. Please enter a sufficient amount.",0
+newline BYTE 13,10,0
+
+totalBill DWORD 100 ; Example total bill amount
+paymentAmount DWORD ?
+change DWORD ?
+
+; ============================================================
 ; Code Section
 ; ============================================================
 .code
-; ADAM PART
-;main PROC
-;    ; Main booking/payment loop
-;mainLoop:
-;    ; --- Payment Module ---
-;    mov edx, OFFSET promptPayment
-;    call WriteString
-;    call ReadInt
-;    mov paymentMethod, al
-;    cmp al, 1
-;    je payment_ok
-;    cmp al, 2
-;    je payment_ok
-;    ; Invalid input
-;    mov edx, OFFSET promptInvalid
-;    call WriteString
-;    mov edx, OFFSET newline
-;    call WriteString
-;    jmp mainLoop
 
 
-payment_ok:
-    ; Ask for payment amount, repeat if not enough
-getPayment:
-    mov edx, OFFSET promptPay
-    call WriteString
-    call ReadInt
-    mov paymentAmount, eax
-    mov eax, paymentAmount
-    cmp eax, totalBill
-    jl not_enough_balance
-    ; Calculate change: change = paymentAmount - totalBill
-    sub eax, totalBill
-    mov change, eax
-    ; Show change
-    mov edx, OFFSET promptChange
-    call WriteString
-    mov eax, change
-    call WriteInt
-    mov edx, OFFSET newline
-    call WriteString
 
-    mov edx, OFFSET promptSuccess
-    call WriteString
-    mov edx, OFFSET newline
-    call WriteString
+; ============================================================
+; PROGRAM ENTRY POINT
+; ============================================================
+main PROC
+    call login         ; Start with login procedure
+    exit               ; Exit program after login returns (should not happen)
+main ENDP
 
-    jmp askAnother
+; ============================================================
+; LOGIN PROCEDURE
+; ============================================================
+login PROC
+    call clrscr
+    mov currentUser, 0 ; Reset current user
 
-not_enough_balance:
-    mov edx, OFFSET promptNotEnough
-    call WriteString
-    mov edx, OFFSET newline
-    call WriteString
-    jmp getPayment
+login_loop:
+    call clrscr
+    mov edx, OFFSET loginMessage
+    call WriteString   ; Prompt for username
+    call crlf
 
-    ; --- Book Another Flight Module ---
-askAnother:
-    mov edx, OFFSET promptAnother
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString    ; Read username input
+
+    ; Check if input matches user1
+    INVOKE Str_compare, ADDR userInput, ADDR user1name
+    je user1_found
+
+    ; Check if input matches user2
+    INVOKE Str_compare, ADDR userInput, ADDR user2name
+    je user2_found
+
+    ; If username is invalid
+    mov edx, OFFSET wrongUsernameMessage
     call WriteString
-    call ReadInt
-    mov bookAnother, al
+    call crlf
+    call waitEnter     ; Wait for user to press Enter
+    jmp login_loop     ; Retry login
+
+user1_found:
+    call clrscr
+    mov currentUser, 1
+    mov edx, OFFSET user1found
+    call WriteString   ; Greet user 1
+    call crlf
+    mov edx, OFFSET passwordMessage
+    call WriteString   ; Prompt for password
+    call crlf
+
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString    ; Read password input
+    INVOKE Str_compare, ADDR userInput, ADDR user1pw
+    je main_menu       ; If password correct, go to main menu
+
+    ; If password is incorrect
+    mov edx, OFFSET wrongPwordMessage
+    call WriteString
+    call crlf
+    call waitEnter
+    jmp login_loop     ; Retry login
+
+user2_found:
+    call clrscr
+    mov currentUser, 2
+    mov edx, OFFSET user2found
+    call WriteString   ; Greet user 2
+    call crlf
+    mov edx, OFFSET passwordMessage
+    call WriteString   ; Prompt for password
+    call crlf
+
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString    ; Read password input
+    INVOKE Str_compare, ADDR userInput, ADDR user2pw
+    je main_menu       ; If password correct, go to main menu
+
+    ; If password is incorrect
+    mov edx, OFFSET wrongPwordMessage
+    call WriteString
+    call crlf
+    call waitEnter
+    jmp login_loop     ; Retry login
+
+login_end:
+    ret
+login ENDP
+
+; ============================================================
+; MAIN MENU PROCEURE
+; ============================================================
+main_menu PROC
+    call clrscr
+
+    ; Display personalized greeting based on user
+    mov al, currentUser
     cmp al, 1
-    je mainLoop
+    je show_user1_greet
     cmp al, 2
-    je exitApp
-    ; Invalid input
-    mov edx, OFFSET promptInvalid
+    je show_user2_greet
+    jmp show_menu
+
+show_user1_greet:
+    mov edx, OFFSET greetUser1
     call WriteString
-    mov edx, OFFSET newline
+    call crlf
+    jmp show_menu
+
+show_user2_greet:
+    mov edx, OFFSET greetUser2
     call WriteString
-    jmp askAnother
+    call crlf
 
-exitApp:
-    INVOKE ExitProcess, 0
-=======
+show_menu:
+    ; Display all menu lines
+    mov edx, OFFSET menuLine1
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine2
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine3
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine4
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine5
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine6
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine7
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine8
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine9
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine10
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine11
+    call WriteString
+    call crlf
 
-;main PROC
-;    call CustomerIdModule
-;    call PassengerInputModule
-;    call SummaryModule
-;    INVOKE ExitProcess, 0
-;main ENDP
+    ; Read user option selection
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString
 
+    ; Handle menu options
+    INVOKE Str_compare, ADDR userInput, ADDR selection0
+    je login            ; Log out and return to login
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection1
+    je option1_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection2
+    je option2_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection3
+    je option3_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection4
+    je option4_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection5
+    je option5_selected
+
+    ; If invalid option selected
+    mov edx, OFFSET invalidMessage
+    call WriteString
+    call waitEnter
+    jmp main_menu
+
+option1_selected:
+    mov ax, 525
+    mov currentPrice, ax         ; Store price for option 1
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option2_selected:
+    mov ax, 2700
+    mov currentPrice, ax         ; Store price for option 2
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option3_selected:
+    mov ax, 7500
+    mov currentPrice, ax         ; Store price for option 3
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option4_selected:
+    mov ax, 3300
+    mov currentPrice, ax         ; Store price for option 4
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option5_selected:
+    mov ax, 5400
+    mov currentPrice, ax         ; Store price for option 5
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+    ; PRICES ARE STORED IN currentPrice VARIABLE FOR FURTHER CALCULATIONS
+
+main_menu ENDP
+
+; ------------------------------------------------------------
+; Wait for Enter Key Procedure
+; Waits until the user presses the Enter key
+; ------------------------------------------------------------
+waitEnter PROC
+waitLoop:
+    call ReadChar
+    cmp al, 13                  ; 13 = ASCII code for Enter
+    jne waitLoop
+    ret
+waitEnter ENDP
+
+END main
+
+;================================
+; YANZHE PART MODULE SELECT FLIGHT 
+;================================================================
+
+; --- Step 1: Select Flight ---
+FlightMenu:
+    mov edx, OFFSET menuFlight
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je ChooseMAS
+    cmp eax, 2
+    je ChooseAA
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp FlightMenu
+
+ChooseMAS:
+    mov selectedFlight, 1
+    jmp TripMenu
+
+ChooseAA:
+    mov selectedFlight, 2
+    jmp TripMenu
+
+; --- Step 2: Select Trip Type ---
+TripMenu:
+    mov edx, OFFSET menuTrip
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je OneWay
+    cmp eax, 2
+    je TwoWay
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp TripMenu
+
+OneWay:
+    mov selectedTrip, 1
+    jmp ShowBooking
+
+TwoWay:
+    mov selectedTrip, 2
+    jmp ShowBooking
+
+; --- Show Booking Confirmation ---
+ShowBooking:
+    mov edx, OFFSET confirmMsg
+    call WriteString
+
+    mov eax, selectedFlight
+    cmp eax, 1
+    je ShowMAS
+    cmp eax, 2
+    je ShowAA
+
+ShowMAS:
+    mov edx, OFFSET MASdepart
+    call WriteString
+    mov eax, selectedTrip
+    cmp eax, 2
+    jne ContinueToTicket
+    mov edx, OFFSET MASreturn
+    call WriteString
+    jmp ContinueToTicket
+
+ShowAA:
+    mov edx, OFFSET AAdDepart
+    call WriteString
+    mov eax, selectedTrip
+    cmp eax, 2
+    jne ContinueToTicket
+    mov edx, OFFSET AAdReturn
+    call WriteString
+    jmp ContinueToTicket
+
+; --- Step 3: Select Ticket Class ---
+ContinueToTicket:
+    mov edx, OFFSET menuClass
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je ClassEconomy
+    cmp eax, 2
+    je ClassBusiness
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp ContinueToTicket
+
+ClassEconomy:
+    mov ticketCost, 500
+    jmp InsuranceMenu
+
+ClassBusiness:
+    mov ticketCost, 1200
+    jmp InsuranceMenu
+
+; --- Step 4: Insurance ---
+InsuranceMenu:
+    mov edx, OFFSET menuInsure
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je AddInsurance
+    cmp eax, 2
+    je SkipInsurance
+
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    jmp InsuranceMenu
+
+AddInsurance:
+    add ticketCost, 100
+    jmp ShowTotal
+
+SkipInsurance:
+    jmp ShowTotal
+
+; --- Show Total ---
+ShowTotal:
+    mov edx, OFFSET totalMsg
+    call WriteString
+    mov eax, ticketCost
+    call WriteDec
+    call Crlf
 ;-----------------------------------------------------------
 CustomerIdModule PROC
 ;
@@ -239,7 +588,6 @@ NotMember:
     mov isMember, 0
     ret
 CustomerIdModule ENDP
-
 ;-----------------------------------------------------------
 PassengerInputModule PROC
 ;
@@ -458,364 +806,90 @@ Done:
 SummaryModule ENDP
 
 END main
-=======
-; YANZHE PART
-; --- Step 1: Select Flight ---
-FlightMenu:
-    mov edx, OFFSET menuFlight
+
+
+
+; ADAM PART
+;main PROC
+;    ; Main booking/payment loop
+;mainLoop:
+;    ; --- Payment Module ---
+;    mov edx, OFFSET promptPayment
+;    call WriteString
+;    call ReadInt
+;    mov paymentMethod, al
+;    cmp al, 1
+;    je payment_ok
+;    cmp al, 2
+;    je payment_ok
+;    ; Invalid input
+;    mov edx, OFFSET promptInvalid
+;    call WriteString
+;    mov edx, OFFSET newline
+;    call WriteString
+;    jmp mainLoop
+
+
+payment_ok:
+    ; Ask for payment amount, repeat if not enough
+getPayment:
+    mov edx, OFFSET promptPay
     call WriteString
     call ReadInt
-
-    cmp eax, 1
-    je ChooseMAS
-    cmp eax, 2
-    je ChooseAA
-
-    mov edx, OFFSET invalidMsg
+    mov paymentAmount, eax
+    mov eax, paymentAmount
+    cmp eax, totalBill
+    jl not_enough_balance
+    ; Calculate change: change = paymentAmount - totalBill
+    sub eax, totalBill
+    mov change, eax
+    ; Show change
+    mov edx, OFFSET promptChange
     call WriteString
-    jmp FlightMenu
-
-ChooseMAS:
-    mov selectedFlight, 1
-    jmp TripMenu
-
-ChooseAA:
-    mov selectedFlight, 2
-    jmp TripMenu
-
-; --- Step 2: Select Trip Type ---
-TripMenu:
-    mov edx, OFFSET menuTrip
-    call WriteString
-    call ReadInt
-
-    cmp eax, 1
-    je OneWay
-    cmp eax, 2
-    je TwoWay
-
-    mov edx, OFFSET invalidMsg
-    call WriteString
-    jmp TripMenu
-
-OneWay:
-    mov selectedTrip, 1
-    jmp ShowBooking
-
-TwoWay:
-    mov selectedTrip, 2
-    jmp ShowBooking
-
-; --- Show Booking Confirmation ---
-ShowBooking:
-    mov edx, OFFSET confirmMsg
+    mov eax, change
+    call WriteInt
+    mov edx, OFFSET newline
     call WriteString
 
-    mov eax, selectedFlight
-    cmp eax, 1
-    je ShowMAS
-    cmp eax, 2
-    je ShowAA
+    mov edx, OFFSET promptSuccess
+    call WriteString
+    mov edx, OFFSET newline
+    call WriteString
 
-ShowMAS:
-    mov edx, OFFSET MASdepart
-    call WriteString
-    mov eax, selectedTrip
-    cmp eax, 2
-    jne ContinueToTicket
-    mov edx, OFFSET MASreturn
-    call WriteString
-    jmp ContinueToTicket
+    jmp askAnother
 
-ShowAA:
-    mov edx, OFFSET AAdDepart
+not_enough_balance:
+    mov edx, OFFSET promptNotEnough
     call WriteString
-    mov eax, selectedTrip
-    cmp eax, 2
-    jne ContinueToTicket
-    mov edx, OFFSET AAdReturn
+    mov edx, OFFSET newline
     call WriteString
-    jmp ContinueToTicket
+    jmp getPayment
 
-; --- Step 3: Select Ticket Class ---
-ContinueToTicket:
-    mov edx, OFFSET menuClass
+    ; --- Book Another Flight Module ---
+askAnother:
+    mov edx, OFFSET promptAnother
     call WriteString
     call ReadInt
-
-    cmp eax, 1
-    je ClassEconomy
-    cmp eax, 2
-    je ClassBusiness
-
-    mov edx, OFFSET invalidMsg
-    call WriteString
-    jmp ContinueToTicket
-
-ClassEconomy:
-    mov ticketCost, 500
-    jmp InsuranceMenu
-
-ClassBusiness:
-    mov ticketCost, 1200
-    jmp InsuranceMenu
-
-; --- Step 4: Insurance ---
-InsuranceMenu:
-    mov edx, OFFSET menuInsure
-    call WriteString
-    call ReadInt
-
-    cmp eax, 1
-    je AddInsurance
-    cmp eax, 2
-    je SkipInsurance
-
-    mov edx, OFFSET invalidMsg
-    call WriteString
-    jmp InsuranceMenu
-
-AddInsurance:
-    add ticketCost, 100
-    jmp ShowTotal
-
-SkipInsurance:
-    jmp ShowTotal
-
-; --- Show Total ---
-ShowTotal:
-    mov edx, OFFSET totalMsg
-    call WriteString
-    mov eax, ticketCost
-    call WriteDec
-    call Crlf
-
-
-
-; ------------------------------------------------------------
-; Program Entry Point
-; ------------------------------------------------------------
-main PROC
-    call login         ; Start with login procedure
-    exit               ; Exit program after login returns (should not happen)
-main ENDP
-
-; ------------------------------------------------------------
-; Login Procedure
-; Handles user authentication and loops until successful login
-; ------------------------------------------------------------
-login PROC
-    call clrscr
-    mov currentUser, 0 ; Reset current user
-
-login_loop:
-    call clrscr
-    mov edx, OFFSET loginMessage
-    call WriteString   ; Prompt for username
-    call crlf
-
-    mov edx, OFFSET userInput
-    mov ecx, SIZEOF userInput
-    call ReadString    ; Read username input
-
-    ; Check if input matches user1
-    INVOKE Str_compare, ADDR userInput, ADDR user1name
-    je user1_found
-
-    ; Check if input matches user2
-    INVOKE Str_compare, ADDR userInput, ADDR user2name
-    je user2_found
-
-    ; If username is invalid
-    mov edx, OFFSET wrongUsernameMessage
-    call WriteString
-    call crlf
-    call waitEnter     ; Wait for user to press Enter
-    jmp login_loop     ; Retry login
-
-user1_found:
-    call clrscr
-    mov currentUser, 1
-    mov edx, OFFSET user1found
-    call WriteString   ; Greet user 1
-    call crlf
-    mov edx, OFFSET passwordMessage
-    call WriteString   ; Prompt for password
-    call crlf
-
-    mov edx, OFFSET userInput
-    mov ecx, SIZEOF userInput
-    call ReadString    ; Read password input
-    INVOKE Str_compare, ADDR userInput, ADDR user1pw
-    je main_menu       ; If password correct, go to main menu
-
-    ; If password is incorrect
-    mov edx, OFFSET wrongPwordMessage
-    call WriteString
-    call crlf
-    call waitEnter
-    jmp login_loop     ; Retry login
-
-user2_found:
-    call clrscr
-    mov currentUser, 2
-    mov edx, OFFSET user2found
-    call WriteString   ; Greet user 2
-    call crlf
-    mov edx, OFFSET passwordMessage
-    call WriteString   ; Prompt for password
-    call crlf
-
-    mov edx, OFFSET userInput
-    mov ecx, SIZEOF userInput
-    call ReadString    ; Read password input
-    INVOKE Str_compare, ADDR userInput, ADDR user2pw
-    je main_menu       ; If password correct, go to main menu
-
-    ; If password is incorrect
-    mov edx, OFFSET wrongPwordMessage
-    call WriteString
-    call crlf
-    call waitEnter
-    jmp login_loop     ; Retry login
-
-login_end:
-    ret
-login ENDP
-
-; ------------------------------------------------------------
-; Main Menu Procedure
-; Displays the menu and handles user selection
-; ------------------------------------------------------------
-main_menu PROC
-    call clrscr
-
-    ; Display personalized greeting based on user
-    mov al, currentUser
+    mov bookAnother, al
     cmp al, 1
-    je show_user1_greet
+    je mainLoop
     cmp al, 2
-    je show_user2_greet
-    jmp show_menu
-
-show_user1_greet:
-    mov edx, OFFSET greetUser1
+    je exitApp
+    ; Invalid input
+    mov edx, OFFSET promptInvalid
     call WriteString
-    call crlf
-    jmp show_menu
-
-show_user2_greet:
-    mov edx, OFFSET greetUser2
+    mov edx, OFFSET newline
     call WriteString
-    call crlf
+    jmp askAnother
 
-show_menu:
-    ; Display all menu lines
-    mov edx, OFFSET menuLine1
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine2
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine3
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine4
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine5
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine6
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine7
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine8
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine9
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine10
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine11
-    call WriteString
-    call crlf
+exitApp:
+    INVOKE ExitProcess, 0
 
-    ; Read user option selection
-    mov edx, OFFSET userInput
-    mov ecx, SIZEOF userInput
-    call ReadString
 
-    ; Handle menu options
-    INVOKE Str_compare, ADDR userInput, ADDR selection0
-    je login            ; Log out and return to login
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection1
-    je option1_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection2
-    je option2_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection3
-    je option3_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection4
-    je option4_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection5
-    je option5_selected
-
-    ; If invalid option selected
-    mov edx, OFFSET invalidMessage
-    call WriteString
-    call waitEnter
-    jmp main_menu
-
-option1_selected:
-    mov ax, 525
-    mov currentPrice, ax         ; Store price for option 1
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option2_selected:
-    mov ax, 2700
-    mov currentPrice, ax         ; Store price for option 2
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option3_selected:
-    mov ax, 7500
-    mov currentPrice, ax         ; Store price for option 3
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option4_selected:
-    mov ax, 3300
-    mov currentPrice, ax         ; Store price for option 4
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option5_selected:
-    mov ax, 5400
-    mov currentPrice, ax         ; Store price for option 5
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-    ; PRICES ARE STORED IN currentPrice VARIABLE FOR FURTHER CALCULATIONS
-
-main_menu ENDP
-
-; ------------------------------------------------------------
-; Wait for Enter Key Procedure
-; Waits until the user presses the Enter key
-; ------------------------------------------------------------
-waitEnter PROC
-waitLoop:
-    call ReadChar
-    cmp al, 13                  ; 13 = ASCII code for Enter
-    jne waitLoop
-    ret
-waitEnter ENDP
-
-END main
-
+;main PROC
+;    call CustomerIdModule
+;    call PassengerInputModule
+;    call SummaryModule
+;    INVOKE ExitProcess, 0
+;main ENDP
 
