@@ -16,7 +16,6 @@ promptInvalid BYTE "Invalid input. Try again.",0
 promptPay BYTE "Pay Amount : ",0
 promptChange BYTE "Your change is: ",0
 promptNotEnough BYTE "Not enough balance. Please enter a sufficient amount.",0
-newline BYTE 13,10,0
 
 totalBill DWORD 100 ; Example total bill amount
 paymentAmount DWORD ?
@@ -49,7 +48,6 @@ change DWORD ?
     memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
     normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
     priceLabel   BYTE "Total Price: RM",0
-    newline      BYTE 0Dh,0Ah,0
     passengerHeader BYTE "Passenger Details:",0Dh,0Ah,0
     passengerLine BYTE "Name: ",0
     passportLine BYTE "Passport: ",0
