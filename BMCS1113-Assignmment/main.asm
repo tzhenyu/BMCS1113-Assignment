@@ -10,17 +10,17 @@ includelib \Irvine32\User32.lib
 
 .data
     ; Constants
-    MAX_PASSENGERS = 20
+    MAX_PASSENGERS = 5
     NAME_SIZE = 50
     PASSPORT_SIZE = 20
     CUSTOMER_ID_SIZE = 10
 
     ; Module 5 Data
-    promptPax      BYTE "Number of passengers (1-20): ", 0
+    promptPax      BYTE "Number of passengers (1-5): ", 0
     promptName     BYTE "Passenger name: ", 0
     promptPassport BYTE "Passport number: ", 0
     promptCustomer BYTE "Customer ID (C12345 format): ", 0
-    errPaxMsg      BYTE "Invalid input. Please enter 1-20: ", 0
+    errPaxMsg      BYTE "Invalid input. Please enter 1-5: ", 0
     
     ; Passenger Data
     pax DWORD ?
@@ -29,8 +29,12 @@ includelib \Irvine32\User32.lib
     passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
     isMember DWORD 0  ; 0 = not member, 1 = member
 
+    ; For float formatting
+    tempInt DWORD ?
+    hundred REAL8 100.0
+
     ; Module 6 Data
-    summaryTitle BYTE "----- Booking Summary -----",0Dh,0Ah,0
+    summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
     memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
     memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
     normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
@@ -67,12 +71,16 @@ CustomerIdModule PROC
     call ReadString
     call Crlf
 
-    ; Check if customer ID starts with 'C' (membership requirement)
+    ; Check if customer ID starts with 'C' or 'c' (case-insensitive)
     mov al, customerId
     cmp al, 'C'
-    jne NotMember
+    je CheckRestOfId
+    cmp al, 'c'
+    je CheckRestOfId
+    jmp NotMember
 
-    ; If starts with 'C', check if followed by numbers
+CheckRestOfId:
+    ; If starts with 'C' or 'c', check if followed by numbers
     mov ecx, 1
 CheckDigits:
     mov al, customerId[ecx]
@@ -159,6 +167,60 @@ PassengerLoop:
 PassengerInputModule ENDP
 
 ;-----------------------------------------------------------
+WriteFloat2Decimal PROC
+;
+; Writes a floating-point number with 2 decimal places
+;-----------------------------------------------------------
+    LOCAL negativeFlag:BYTE
+    
+    mov negativeFlag, 0
+    
+    ; Check if negative
+    fld ST(0)
+    ftst
+    fstsw ax
+    sahf
+    jnb PositiveNumber
+    mov negativeFlag, 1
+    fchs  ; Make positive
+    
+PositiveNumber:
+    ; Multiply by 100, round to integer
+    fmul hundred
+    frndint
+    fistp tempInt
+    
+    ; Display negative sign if needed
+    cmp negativeFlag, 0
+    je DisplayNumber
+    mov al, '-'
+    call WriteChar
+    
+DisplayNumber:
+    ; Display integer part (dollars)
+    mov eax, tempInt
+    mov edx, 0
+    mov ebx, 100
+    div ebx
+    call WriteDec
+    
+    ; Display decimal point
+    mov al, '.'
+    call WriteChar
+    
+    ; Display cents (2 decimal places)
+    mov eax, edx  ; remainder contains cents
+    cmp eax, 10
+    jge DisplayCents
+    mov al, '0'   ; add leading zero if needed
+    call WriteChar
+    
+DisplayCents:
+    call WriteDec
+    ret
+WriteFloat2Decimal ENDP
+
+;-----------------------------------------------------------
 SummaryModule PROC
 ;
 ; Module 6: Displays booking summary and calculates price
@@ -168,16 +230,14 @@ SummaryModule PROC
     call WriteString
     call Crlf
 
-    ; Display customer ID
-    mov edx, OFFSET promptCustomer
-    call WriteString
-    mov edx, OFFSET customerId
-    call WriteString
-    call Crlf
-
-    ; Display status
+    ; Display membership status message if member
     cmp isMember, 1
     jne RegularCustomer
+    
+    ; Show membership detected message
+    mov edx, OFFSET memberDetected
+    call WriteString
+    
     mov edx, OFFSET memberStatus
     call WriteString
     jmp CalculatePrice
@@ -255,56 +315,13 @@ DisplayLoop:
 
     ; Show discounted price
     fld discountedTotal
-    call WriteFloat
-    call Crlf
-
-    ; Show original price for comparison
-    mov edx, OFFSET priceLabel
-    call WriteString
-    mov edx, OFFSET priceLabel
-    call WriteString
-    fld total
-    call WriteFloat
-    mov al, ' '
-    call WriteChar
-    mov al, '('
-    call WriteChar
-    mov al, 'o'
-    call WriteChar
-    mov al, 'r'
-    call WriteChar
-    mov al, 'i'
-    call WriteChar
-    mov al, 'g'
-    call WriteChar
-    mov al, 'i'
-    call WriteChar
-    mov al, 'n'
-    call WriteChar
-    mov al, 'a'
-    call WriteChar
-    mov al, 'l'
-    call WriteChar
-    mov al, ' '
-    call WriteChar
-    mov al, 'p'
-    call WriteChar
-    mov al, 'r'
-    call WriteChar
-    mov al, 'i'
-    call WriteChar
-    mov al, 'c'
-    call WriteChar
-    mov al, 'e'
-    call WriteChar
-    mov al, ')'
-    call WriteChar
+    call WriteFloat2Decimal
     call Crlf
     jmp Done
 
 ShowRegularPrice:
     fld total
-    call WriteFloat
+    call WriteFloat2Decimal
     call Crlf
 
 Done:
