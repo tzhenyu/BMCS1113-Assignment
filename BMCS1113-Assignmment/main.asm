@@ -36,6 +36,7 @@ invalidMessage       DB "Invalid choice! Press [ENTER] to try again.",0
 wrongPwordMessage    DB "Wrong password. Press [ENTER] to try again.",0
 wrongUsernameMessage DB "Invalid username. Press [ENTER] to try again.",0
 nextSessionMessage   DB "Press [ENTER] to continue.", 0
+byeMessage           DB "Thank you for using the system. Goodbye!",0
 user1found           DB "Hi, User 1. No membership privilege.",0
 user2found           DB "Hi, User 2. Have membership privilege.",0
 greetUser1           DB "Hi, user 1!",0
@@ -681,9 +682,8 @@ PassengerLoop:
 
     loop PassengerLoop
 
-    ; TODO: PASS TO SUMMARY MODULE AFTER ALL INPUTS
     call SummaryModule
-    ret
+    
 PassengerInputModule ENDP
 
 ;-----------------------------------------------------------
@@ -848,7 +848,12 @@ Done:
     ; Display final separator
     mov edx, OFFSET separatorLine
     call WriteString
+    mov edx, OFFSET nextSessionMessage
+    call WriteString
+    call waitEnter
+    call payment
     ret
+
 SummaryModule ENDP
 
 ; ADAM PART
@@ -949,6 +954,7 @@ write_cents:
 WriteMoney ENDP
 
 payment PROC
+call clrscr
 mainLoop:
     mov edx, OFFSET promptPayment
     call WriteString
@@ -995,7 +1001,7 @@ askAnother:
     call ReadInt
     mov bookAnother, al
     cmp al, 1
-    je mainLoop
+    je go_menu
     cmp al, 2
     je exitApp
     mov edx, OFFSET promptInvalid
@@ -1003,8 +1009,15 @@ askAnother:
     call Crlf
     jmp askAnother
 
+go_menu:
+    call selectTicket
+    jmp payment
+
 exitApp:
-    ret
+    call crlf
+    mov edx, OFFSET byeMessage
+    call WriteString
+    int 21h
 
 payment ENDP
 
