@@ -1,8 +1,3 @@
-.386
-.model flat, stdcall
-.stack 4096
-
-ExitProcess PROTO, dwExitCode:DWORD
 INCLUDE Irvine32.inc
 
 .data
@@ -41,7 +36,6 @@ mainLoop:
     mov edx, OFFSET newline
     call WriteString
     jmp mainLoop
-
 
 payment_ok:
     ; Ask for payment amount, repeat if not enough
@@ -98,5 +92,4 @@ askAnother:
 exitApp:
     INVOKE ExitProcess, 0
 main ENDP
-
 END main
