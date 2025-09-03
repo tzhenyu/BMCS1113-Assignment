@@ -56,6 +56,31 @@ menuLine9   DB "+-----+----------------------+----------------+----------------+
 menuLine10  DB "Select [0] to log out.",0
 menuLine11  DB "Please select an option from the menu above.",0
 
+; YAN ZHE
+; prices used for calculations (must match the table above)
+flightPrices DWORD 525,2700,7500,3300,5400
+
+; prompts and messages
+promptFlight  BYTE "Enter Flight ID (1-5): ",0
+promptClass   BYTE "Choose class: 1=Economy 2=Business : ",0
+promptIns     BYTE "Add insurance? 1=Yes 2=No : ",0
+invalidMsg    BYTE "Invalid input! Please try again.",0
+
+msgBase       BYTE "Base Price: ",0
+msgClass      BYTE "Class Adj: ",0
+msgIns        BYTE "Insurance: ",0
+msgSep        BYTE "-----------------------------",0
+msgTotal      BYTE "Total: ",0
+
+; temp/user variables
+selectedID    DWORD ?
+basePrice     DWORD ?
+classPrice    DWORD ?
+insPrice      DWORD ?
+totalPrice    DWORD ?
+
+
+
 ; ============================================================
 ; Code Section
 ; ============================================================
@@ -116,7 +141,7 @@ user1_found:
     mov ecx, SIZEOF userInput
     call ReadString    ; Read password input
     INVOKE Str_compare, ADDR userInput, ADDR user1pw
-    je main_menu       ; If password correct, go to main menu
+    je selectTicket       ; If password correct, go to main menu ## changed to selectticket
 
     ; If password is incorrect
     mov edx, OFFSET wrongPwordMessage
@@ -139,7 +164,7 @@ user2_found:
     mov ecx, SIZEOF userInput
     call ReadString    ; Read password input
     INVOKE Str_compare, ADDR userInput, ADDR user2pw
-    je main_menu       ; If password correct, go to main menu
+    je selectTicket       ; If password correct, go to main menu ## CHANGED TO SELECTTICKET
 
     ; If password is incorrect
     mov edx, OFFSET wrongPwordMessage
@@ -284,5 +309,247 @@ waitLoop:
     jne waitLoop
     ret
 waitEnter ENDP
+
+; ------------------------------------------------------------
+;  YAN ZHE PART PROCEDURE
+; 
+; ------------------------------------------------------------
+
+
+selectTicket PROC
+
+    call Clrscr
+
+    ; Display personalized greeting based on user
+    mov al, currentUser
+    cmp al, 1
+    je show_user1_greet
+    cmp al, 2
+    je show_user2_greet
+    jmp show_menu
+
+show_user1_greet:
+    mov edx, OFFSET greetUser1
+    call WriteString
+    call crlf
+    jmp show_menu
+
+show_user2_greet:
+    mov edx, OFFSET greetUser2
+    call WriteString
+    call crlf
+
+   ;show menu
+show_menu:
+       
+    mov edx, OFFSET menuLine1
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine2
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine3
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine4
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine5
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine6
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine7
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine8
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine9
+    call WriteString
+    call Crlf
+
+
+    ; -------- get flight id (with validation) --------
+GetFlight:
+    mov edx, OFFSET promptFlight
+    call WriteString
+    call ReadInt           ; EAX = user's input
+    cmp eax, 1
+    jl InvalidFlight
+    cmp eax, 5
+    jg InvalidFlight
+    mov selectedID, eax
+    jmp AfterFlight
+
+InvalidFlight:
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    call Crlf
+    jmp GetFlight
+
+AfterFlight:
+    ; clear screen and show only the selected row (with borders)
+    call Clrscr
+
+
+
+    mov edx, OFFSET menuLine1
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine2
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET menuLine3
+    call WriteString
+    call Crlf
+
+    mov eax, selectedID
+    cmp eax, 1
+    je ShowRow1
+    cmp eax, 2
+    je ShowRow2
+    cmp eax, 3
+    je ShowRow3
+    cmp eax, 4
+    je ShowRow4
+    jmp ShowRow5
+
+ShowRow1:
+    mov edx, OFFSET menuLine4
+    call WriteString
+    call Crlf
+    jmp ShowRowEnd
+ShowRow2:
+    mov edx, OFFSET menuLine5
+    call WriteString
+    call Crlf
+    jmp ShowRowEnd
+ShowRow3:
+    mov edx, OFFSET menuLine6
+    call WriteString
+    call Crlf
+    jmp ShowRowEnd
+ShowRow4:
+    mov edx, OFFSET menuLine7
+    call WriteString
+    call Crlf
+    jmp ShowRowEnd
+ShowRow5:
+    mov edx, OFFSET menuLine8
+    call WriteString
+    call Crlf
+
+ShowRowEnd:
+    mov edx, OFFSET menuLine9
+    call WriteString
+    call Crlf
+
+    ; ------------ load base price from array ------------
+    mov eax, selectedID
+    dec eax                  ; make 0-based index
+    lea esi, flightPrices
+    mov eax, [esi + eax*4]   ; load price
+    mov basePrice, eax
+
+    ; ------------ ask for class ------------
+GetClass:
+    mov edx, OFFSET promptClass
+    call WriteString
+    call ReadInt            ; EAX = class choice
+    cmp eax, 1
+    je ClassEconomy
+    cmp eax, 2
+    je ClassBusiness
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    call Crlf
+    jmp GetClass
+
+ClassEconomy:
+    mov eax, basePrice
+    mov classPrice, eax
+    jmp AskInsurance
+
+ClassBusiness:
+    ; classPrice = basePrice * 1.4  ->  = (base * 14) / 10
+    mov eax, basePrice
+    mov ebx, 14
+    mul ebx                 ; EDX:EAX = base * 14
+    mov ebx, 10
+    div ebx                 ; EAX = (base*14)/10
+    mov classPrice, eax
+    jmp AskInsurance
+
+AskInsurance:
+    mov edx, OFFSET promptIns
+    call WriteString
+    call ReadInt            ; EAX = 1 -> yes, 2 -> no
+    cmp eax, 1
+    je InsYes
+    cmp eax, 2
+    je InsNo
+    mov edx, OFFSET invalidMsg
+    call WriteString
+    call Crlf
+    jmp AskInsurance
+
+InsYes:
+    mov insPrice, 100
+    jmp ComputeTotal
+InsNo:
+    mov insPrice, 0
+
+ComputeTotal:
+    mov eax, classPrice
+    add eax, insPrice
+    mov totalPrice, eax
+
+    ; ----------- display breakdown -----------
+    call Crlf
+    mov edx, OFFSET msgBase
+    call WriteString
+    mov eax, basePrice
+    call WriteDec
+    call Crlf
+
+    mov edx, OFFSET msgClass
+    call WriteString
+    mov eax, classPrice
+    sub eax, basePrice        ; show adjustment compared to base
+    call WriteDec
+    call Crlf
+
+    mov edx, OFFSET msgIns
+    call WriteString
+    mov eax, insPrice
+    call WriteDec
+    call Crlf
+
+    mov edx, OFFSET msgSep
+    call WriteString
+    call Crlf
+
+    mov edx, OFFSET msgTotal
+    call WriteString
+    mov eax, totalPrice
+    call WriteDec
+    call Crlf
+
+    ; exit
+    invoke ExitProcess, 0
+selectTicket ENDP
+
 
 END main
