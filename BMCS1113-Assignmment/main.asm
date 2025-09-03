@@ -11,6 +11,9 @@ INCLUDE Irvine32.inc
 includelib Irvine32.lib
 includelib kernel32.lib
 
+; ============================================================
+; Data Section
+; ============================================================
 .data
 ; --- Menu Display Lines (unchanged) ---
 menuLine1   DB "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
@@ -256,4 +259,221 @@ ComputeTotal:
     invoke ExitProcess, 0
 main ENDP
 
+; ------------------------------------------------------------
+; Login Procedure
+; Handles user authentication and loops until successful login
+; ------------------------------------------------------------
+login PROC
+    call clrscr
+    mov currentUser, 0 ; Reset current user
+
+login_loop:
+    call clrscr
+    mov edx, OFFSET loginMessage
+    call WriteString   ; Prompt for username
+    call crlf
+
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString    ; Read username input
+
+    ; Check if input matches user1
+    INVOKE Str_compare, ADDR userInput, ADDR user1name
+    je user1_found
+
+    ; Check if input matches user2
+    INVOKE Str_compare, ADDR userInput, ADDR user2name
+    je user2_found
+
+    ; If username is invalid
+    mov edx, OFFSET wrongUsernameMessage
+    call WriteString
+    call crlf
+    call waitEnter     ; Wait for user to press Enter
+    jmp login_loop     ; Retry login
+
+user1_found:
+    call clrscr
+    mov currentUser, 1
+    mov edx, OFFSET user1found
+    call WriteString   ; Greet user 1
+    call crlf
+    mov edx, OFFSET passwordMessage
+    call WriteString   ; Prompt for password
+    call crlf
+
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString    ; Read password input
+    INVOKE Str_compare, ADDR userInput, ADDR user1pw
+    je main_menu       ; If password correct, go to main menu
+
+    ; If password is incorrect
+    mov edx, OFFSET wrongPwordMessage
+    call WriteString
+    call crlf
+    call waitEnter
+    jmp login_loop     ; Retry login
+
+user2_found:
+    call clrscr
+    mov currentUser, 2
+    mov edx, OFFSET user2found
+    call WriteString   ; Greet user 2
+    call crlf
+    mov edx, OFFSET passwordMessage
+    call WriteString   ; Prompt for password
+    call crlf
+
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString    ; Read password input
+    INVOKE Str_compare, ADDR userInput, ADDR user2pw
+    je main_menu       ; If password correct, go to main menu
+
+    ; If password is incorrect
+    mov edx, OFFSET wrongPwordMessage
+    call WriteString
+    call crlf
+    call waitEnter
+    jmp login_loop     ; Retry login
+
+login_end:
+    ret
+login ENDP
+
+; ------------------------------------------------------------
+; Main Menu Procedure
+; Displays the menu and handles user selection
+; ------------------------------------------------------------
+main_menu PROC
+    call clrscr
+
+    ; Display personalized greeting based on user
+    mov al, currentUser
+    cmp al, 1
+    je show_user1_greet
+    cmp al, 2
+    je show_user2_greet
+    jmp show_menu
+
+show_user1_greet:
+    mov edx, OFFSET greetUser1
+    call WriteString
+    call crlf
+    jmp show_menu
+
+show_user2_greet:
+    mov edx, OFFSET greetUser2
+    call WriteString
+    call crlf
+
+show_menu:
+    ; Display all menu lines
+    mov edx, OFFSET menuLine1
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine2
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine3
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine4
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine5
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine6
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine7
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine8
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine9
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine10
+    call WriteString
+    call crlf
+    mov edx, OFFSET menuLine11
+    call WriteString
+    call crlf
+
+    ; Read user option selection
+    mov edx, OFFSET userInput
+    mov ecx, SIZEOF userInput
+    call ReadString
+
+    ; Handle menu options
+    INVOKE Str_compare, ADDR userInput, ADDR selection0
+    je login            ; Log out and return to login
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection1
+    je option1_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection2
+    je option2_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection3
+    je option3_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection4
+    je option4_selected
+
+    INVOKE Str_compare, ADDR userInput, ADDR selection5
+    je option5_selected
+
+    ; If invalid option selected
+    mov edx, OFFSET invalidMessage
+    call WriteString
+    call waitEnter
+    jmp main_menu
+
+option1_selected:
+    mov ax, 525
+    mov currentPrice, ax         ; Store price for option 1
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option2_selected:
+    mov ax, 2700
+    mov currentPrice, ax         ; Store price for option 2
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option3_selected:
+    mov ax, 7500
+    mov currentPrice, ax         ; Store price for option 3
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option4_selected:
+    mov ax, 3300
+    mov currentPrice, ax         ; Store price for option 4
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+option5_selected:
+    mov ax, 5400
+    mov currentPrice, ax         ; Store price for option 5
+    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
+
+    ; PRICES ARE STORED IN currentPrice VARIABLE FOR FURTHER CALCULATIONS
+
+main_menu ENDP
+
+; ------------------------------------------------------------
+; Wait for Enter Key Procedure
+; Waits until the user presses the Enter key
+; ------------------------------------------------------------
+waitEnter PROC
+waitLoop:
+    call ReadChar
+    cmp al, 13                  ; 13 = ASCII code for Enter
+    jne waitLoop
+    ret
+waitEnter ENDP
+
 END main
+
