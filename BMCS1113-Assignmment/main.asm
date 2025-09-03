@@ -21,7 +21,6 @@ change DWORD ?
 main PROC
     ; Main booking/payment loop
 mainLoop:
-    ; --- Payment Module ---
     mov edx, OFFSET promptPayment
     call WriteString
     call ReadInt
@@ -30,7 +29,6 @@ mainLoop:
     je payment_ok
     cmp al, 2
     je payment_ok
-    ; Invalid input
     mov edx, OFFSET promptInvalid
     call WriteString
     mov edx, OFFSET newline
@@ -38,7 +36,6 @@ mainLoop:
     jmp mainLoop
 
 payment_ok:
-    ; Ask for payment amount, repeat if not enough
 getPayment:
     mov edx, OFFSET promptPay
     call WriteString
@@ -47,10 +44,8 @@ getPayment:
     mov eax, paymentAmount
     cmp eax, totalBill
     jl not_enough_balance
-    ; Calculate change: change = paymentAmount - totalBill
     sub eax, totalBill
     mov change, eax
-    ; Show change
     mov edx, OFFSET promptChange
     call WriteString
     mov eax, change
@@ -72,7 +67,6 @@ not_enough_balance:
     call WriteString
     jmp getPayment
 
-    ; --- Book Another Flight Module ---
 askAnother:
     mov edx, OFFSET promptAnother
     call WriteString
@@ -82,7 +76,6 @@ askAnother:
     je mainLoop
     cmp al, 2
     je exitApp
-    ; Invalid input
     mov edx, OFFSET promptInvalid
     call WriteString
     mov edx, OFFSET newline
