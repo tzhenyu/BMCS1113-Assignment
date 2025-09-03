@@ -35,6 +35,7 @@ passwordMessage      DB "Please enter your password: ",0
 invalidMessage       DB "Invalid choice! Press [ENTER] to try again.",0
 wrongPwordMessage    DB "Wrong password. Press [ENTER] to try again.",0
 wrongUsernameMessage DB "Invalid username. Press [ENTER] to try again.",0
+nextSessionMessage   DB "Press [ENTER] to continue.", 0
 user1found           DB "Hi, User 1. No membership privilege.",0
 user2found           DB "Hi, User 2. Have membership privilege.",0
 greetUser1           DB "Hi, user 1!",0
@@ -79,6 +80,65 @@ classPrice    DWORD ?
 insPrice      DWORD ?
 totalPrice    DWORD ?
 
+; GUAN RONG
+    ; Constants
+    MAX_PASSENGERS = 5
+    NAME_SIZE = 50
+    PASSPORT_SIZE = 20
+    CUSTOMER_ID_SIZE = 10
+
+    ; Module 5 Data
+    promptPax      BYTE "Number of passengers (1-5): ", 0
+    promptName     BYTE "Passenger name: ", 0
+    promptPassport BYTE "Passport number: ", 0
+    promptCustomer BYTE "Customer ID (C12345 format): ", 0
+    errPaxMsg      BYTE "Invalid input. Please enter 1-5: ", 0
+    
+    ; Passenger Data
+    pax DWORD ?
+    customerId BYTE CUSTOMER_ID_SIZE DUP(?)
+    passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
+    passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
+    isMember DWORD 0  ; 0 = not member, 1 = member
+
+    ; For float formatting
+    tempInt DWORD ?
+    hundred REAL8 100.0
+
+    ; Module 6 Data
+    summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
+    memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
+    memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
+    normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
+    priceLabel   BYTE "Total Price: RM",0
+    newline      BYTE 0Dh,0Ah,0
+    passengerHeader BYTE "Passenger Details:",0Dh,0Ah,0
+    passengerLine BYTE "Name: ",0
+    passportLine BYTE "Passport: ",0
+    separatorLine BYTE "-----------------------------",0Dh,0Ah,0
+
+    ; Pricing
+    ;basePrice REAL8 199.99
+    discount REAL8 0.15
+    total REAL8 ?
+    discountedTotal REAL8 ?
+
+; ADAM
+; Payment and booking variables
+paymentMethod BYTE ? ; 1=Credit Card, 2=E-wallet
+bookAnother BYTE ?   ; 1=Yes, 0=No
+promptPayment BYTE "Select payment method: 1. Credit Card  2. E-wallet | Your Choice: ",0
+promptSuccess BYTE "Payment successful. Flight booked!",0
+promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
+promptInvalid BYTE "Invalid input. Try again.",0
+promptPay BYTE "Pay Amount (e.g. 3500.75): ",0
+promptChange BYTE "Your change is: ",0
+promptNotEnough BYTE "Not enough balance. Please check again",0
+inputStr BYTE 32 DUP(0)
+totalBill DWORD 350000 ; Example total bill amount (RM 3500.00, in cents)
+paymentAmount DWORD ?
+change DWORD ?
+dotStr BYTE ".",0
 
 
 ; ============================================================
@@ -545,11 +605,407 @@ ComputeTotal:
     call WriteString
     mov eax, totalPrice
     call WriteDec
-    call Crlf
 
-    ; exit
-    invoke ExitProcess, 0
+    call Crlf
+    mov edx, OFFSET nextSessionMessage
+    call WriteString
+    call waitEnter
+    call PassengerInputModule
 selectTicket ENDP
 
+; GUAN RONG PART
+
+
+;-----------------------------------------------------------
+PassengerInputModule PROC
+;
+; Module 5: Collects passenger information
+;-----------------------------------------------------------
+    call clrscr
+    ; Get number of passengers
+GetPaxCount:
+    mov edx, OFFSET promptPax
+    call WriteString
+    call ReadInt
+    
+    cmp eax, 1
+    jl InvalidInput
+    cmp eax, MAX_PASSENGERS
+    jg InvalidInput
+    mov pax, eax
+    jmp GetPassengerData
+
+InvalidInput:
+    mov edx, OFFSET errPaxMsg
+    call WriteString
+    jmp GetPaxCount
+
+GetPassengerData:
+    mov ecx, pax
+    mov esi, 0
+
+PassengerLoop:
+    push ecx  ; Save loop counter
+    
+    ; Get passenger name (offset = esi * NAME_SIZE)
+    mov edx, OFFSET promptName
+    call WriteString
+    mov eax, esi
+    mov ebx, NAME_SIZE
+    mul ebx
+    mov edx, OFFSET passengerNames
+    add edx, eax
+    mov ecx, NAME_SIZE
+    call ReadString
+    call Crlf
+
+    ; Get passport number (offset = esi * PASSPORT_SIZE)
+    mov edx, OFFSET promptPassport
+    call WriteString
+    mov eax, esi
+    mov ebx, PASSPORT_SIZE
+    mul ebx
+    mov edx, OFFSET passports
+    add edx, eax
+    mov ecx, PASSPORT_SIZE
+    call ReadString
+    call Crlf
+
+    mov edx, OFFSET nextSessionMessage
+    call writeString
+    call waitEnter
+    call clrscr
+
+    pop ecx   ; Restore loop counter
+    inc esi
+
+    loop PassengerLoop
+
+    ; TODO: PASS TO SUMMARY MODULE AFTER ALL INPUTS
+    call SummaryModule
+    ret
+PassengerInputModule ENDP
+
+;-----------------------------------------------------------
+WriteFloat2Decimal PROC
+;
+; Writes a floating-point number with 2 decimal places
+;-----------------------------------------------------------
+    LOCAL negativeFlag:BYTE
+    
+    mov negativeFlag, 0
+    
+    ; Check if negative
+    fld ST(0)
+    ftst
+    fstsw ax
+    sahf
+    jnb PositiveNumber
+    mov negativeFlag, 1
+    fchs  ; Make positive
+    
+PositiveNumber:
+    ; Multiply by 100, round to integer
+    fmul hundred
+    frndint
+    fistp tempInt
+    
+    ; Display negative sign if needed
+    cmp negativeFlag, 0
+    je DisplayNumber
+    mov al, '-'
+    call WriteChar
+    
+DisplayNumber:
+    ; Display integer part (dollars)
+    mov eax, tempInt
+    mov edx, 0
+    mov ebx, 100
+    div ebx
+    call WriteDec
+    
+    ; Display decimal point
+    mov al, '.'
+    call WriteChar
+    
+    ; Display cents (2 decimal places)
+    mov eax, edx  ; remainder contains cents
+    cmp eax, 10
+    jge DisplayCents
+    mov al, '0'   ; add leading zero if needed
+    call WriteChar
+    
+DisplayCents:
+    call WriteDec
+    ret
+WriteFloat2Decimal ENDP
+
+;-----------------------------------------------------------
+SummaryModule PROC
+;
+; Module 6: Displays booking summary and calculates price
+;-----------------------------------------------------------
+    ; Display header
+    mov edx, OFFSET summaryTitle
+    call WriteString
+    call Crlf
+
+    ; Display membership status message if member
+    cmp isMember, 1
+    jne RegularCustomer
+    
+    ; Show membership detected message
+    mov edx, OFFSET memberDetected
+    call WriteString
+    
+    mov edx, OFFSET memberStatus
+    call WriteString
+    jmp CalculatePrice
+
+RegularCustomer:
+    mov edx, OFFSET normalStatus
+    call WriteString
+
+CalculatePrice:
+    ; Calculate base total (price * passengers)
+    fild pax
+    fld basePrice
+    fmul
+    fstp total
+
+    ; Apply discount if member
+    cmp isMember, 1
+    jne DisplayPassengers
+
+    fld total
+    fld discount
+    fmul
+    fld total
+    fsub
+    fstp discountedTotal
+
+    ; Display passenger details
+DisplayPassengers:
+    mov edx, OFFSET passengerHeader
+    call WriteString
+    mov ecx, pax
+    mov esi, 0
+
+DisplayLoop:
+    push ecx
+
+    ; Display name
+    mov edx, OFFSET passengerLine
+    call WriteString
+    mov eax, esi
+    mov ebx, NAME_SIZE
+    mul ebx
+    mov edx, OFFSET passengerNames
+    add edx, eax
+    call WriteString
+    call Crlf
+
+    ; Display passport
+    mov edx, OFFSET passportLine
+    call WriteString
+    mov eax, esi
+    mov ebx, PASSPORT_SIZE
+    mul ebx
+    mov edx, OFFSET passports
+    add edx, eax
+    call WriteString
+    call Crlf
+    call Crlf
+
+    pop ecx
+    inc esi
+    loop DisplayLoop
+
+    ; Display separator
+    mov edx, OFFSET separatorLine
+    call WriteString
+
+    ; Display pricing information
+    mov edx, OFFSET priceLabel
+    call WriteString
+
+    ; Display appropriate total
+    cmp isMember, 1
+    jne ShowRegularPrice
+
+    ; Show discounted price
+    fld discountedTotal
+    call WriteFloat2Decimal
+    call Crlf
+    jmp Done
+
+ShowRegularPrice:
+    fld total
+    call WriteFloat2Decimal
+    call Crlf
+
+Done:
+    ; Display final separator
+    mov edx, OFFSET separatorLine
+    call WriteString
+    ret
+SummaryModule ENDP
+
+; ADAM PART
+ReadMoney PROC
+    mov edx, OFFSET inputStr
+    mov ecx, LENGTHOF inputStr
+    call ReadString
+
+    ; Parse integer part
+    mov esi, OFFSET inputStr
+    mov eax, 0
+parse_int:
+    mov bl, [esi]
+    cmp bl, 0
+    je int_done
+    cmp bl, '.'
+    je int_done
+    cmp bl, '0'
+    jb invalid_input
+    cmp bl, '9'
+    ja invalid_input
+    sub bl, '0'
+    movzx ebx, bl      ; Zero extend bl to ebx
+    push ebx           ; Save digit
+    mov ebx, 10
+    mul ebx            ; eax *= 10
+    pop ebx            ; Restore digit
+    add eax, ebx      ; Add digit to result
+    inc esi
+    jmp parse_int
+int_done:
+    imul eax, eax, 100 ; integer part * 100
+    mov ebx, eax
+
+    ; Parse decimal part (if any)
+    mov bl, [esi]
+    cmp bl, '.'
+    jne no_decimal
+    inc esi
+    mov bl, [esi]
+    cmp bl, 0
+    je no_decimal
+    cmp bl, '0'
+    jb invalid_input
+    cmp bl, '9'
+    ja invalid_input
+    sub bl, '0'
+    movzx ecx, bl      ; Use ecx for decimal calculations
+    imul ecx, 10       ; First digit * 10
+    inc esi
+    mov bl, [esi]
+    cmp bl, 0
+    je dec_done
+    cmp bl, '0'
+    jb invalid_input
+    cmp bl, '9'
+    ja invalid_input
+    sub bl, '0'
+    movzx edx, bl      ; Use edx for second digit
+    add ecx, edx       ; Add second digit
+    inc esi
+    mov bl, [esi]
+    cmp bl, 0
+    jne invalid_input
+dec_done:
+    add ebx, ecx       ; Add decimal part to result
+    mov paymentAmount, ebx
+    ret
+no_decimal:
+    mov paymentAmount, ebx
+    ret
+invalid_input:
+    mov paymentAmount, 0
+    ret
+ReadMoney ENDP
+
+; Prints a value in cents as a decimal (e.g., 1250 -> 12.50)
+WriteMoney PROC
+    push edx
+    push eax
+    mov edx, 0
+    mov ebx, 100
+    div ebx
+    push edx
+    call WriteInt
+    mov edx, OFFSET dotStr
+    call WriteString
+    pop eax
+    cmp eax, 10
+    jge write_cents
+    mov al, '0'
+    call WriteChar
+write_cents:
+    call WriteInt
+    pop eax
+    pop edx
+    ret
+WriteMoney ENDP
+
+payment PROC
+mainLoop:
+    mov edx, OFFSET promptPayment
+    call WriteString
+    call ReadInt
+    mov paymentMethod, al
+    cmp al, 1
+    je payment_ok
+    cmp al, 2
+    je payment_ok
+    mov edx, OFFSET promptInvalid
+    call WriteString
+    call Crlf
+    jmp mainLoop
+
+payment_ok:
+getPayment:
+    mov edx, OFFSET promptPay
+    call WriteString
+    call ReadMoney
+    mov eax, paymentAmount
+    cmp eax, totalBill
+    jl not_enough_balance
+    sub eax, totalBill
+    mov change, eax
+    mov edx, OFFSET promptChange
+    call WriteString
+    mov eax, change
+    call WriteMoney
+    call Crlf
+    mov edx, OFFSET promptSuccess
+    call WriteString
+    call Crlf
+    jmp askAnother
+
+not_enough_balance:
+    mov edx, OFFSET promptNotEnough
+    call WriteString
+    call Crlf
+    jmp getPayment
+
+askAnother:
+    mov edx, OFFSET promptAnother
+    call WriteString
+    call ReadInt
+    mov bookAnother, al
+    cmp al, 1
+    je mainLoop
+    cmp al, 2
+    je exitApp
+    mov edx, OFFSET promptInvalid
+    call WriteString
+    call Crlf
+    jmp askAnother
+
+exitApp:
+    ret
+
+payment ENDP
 
 END main
