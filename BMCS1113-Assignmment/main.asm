@@ -28,7 +28,6 @@ mainLoop:
     cmp al, 1
     je payment_ok
     cmp al, 2
-    je payment_ok
     mov edx, OFFSET promptInvalid
     call WriteString
     mov edx, OFFSET newline
