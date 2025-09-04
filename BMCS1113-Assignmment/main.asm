@@ -65,7 +65,7 @@ menuLine10  DB "Select [0] to log out.",0
 ; YAN ZHE - Flight Selection and Price Calculation Module
 ; ------------------------------------------------------------
 ; prices used for calculations (must match the table above)
-flightPrices REAL4 525.0,2700.0,7500.0,3300.0,5400.0
+flightPrices DWORD 525,2700,7500,3300,5400
 
 ; prompts and messages
 promptFlight  BYTE "Choose your option [0-5]: ",0
@@ -81,10 +81,10 @@ msgTotal      BYTE "     Total: RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
-basePrice     REAL4 ?
-classPrice    REAL4 ?
-insPrice      REAL4 ?
-totalPrice    REAL4 ?
+basePrice     DWORD ?
+classPrice    DWORD ?
+insPrice      DWORD ?
+totalPrice    DWORD ?
 
 ; ------------------------------------------------------------
 ; GUAN RONG - Passenger Information and Booking Summary Module
@@ -112,8 +112,7 @@ passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
 ; For float formatting
 tempInt DWORD ?
 hundred REAL8 100.0
-insurancePrice REAL4 100.0
-businessMultiplier REAL4 1.4
+dotStr BYTE ".",0
 
 ; Module 6 Data
 summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
@@ -129,8 +128,8 @@ separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
 ; Pricing
 discount REAL8 0.10
-total REAL8 ?
-discountedTotal REAL8 ?
+total DWORD ?
+discountedTotal DWORD ?
 
 ; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Module
@@ -146,9 +145,9 @@ promptPay BYTE "Pay Amount: RM",0
 promptChange BYTE "Your change is: RM",0
 promptNotEnough BYTE "Not enough balance. Please check again",0
 inputStr BYTE 32 DUP(0)
-totalBill REAL4 3500.0 ; Example total bill amount
-paymentAmount REAL4 ?
-change REAL4 ?
+totalBill DWORD 3500 ; Example total bill amount
+paymentAmount DWORD ?
+change DWORD ?
 dotStr BYTE ".",0
 
 
@@ -439,8 +438,8 @@ ShowRowEnd:
     mov eax, selectedID
     dec eax                  ; make 0-based index
     lea esi, flightPrices
-    fld REAL4 PTR [esi + eax*4]   ; load price as float
-    fstp basePrice
+    mov eax, [esi + eax*4]   ; load price
+    mov basePrice, eax
 
     ; ------------ ask for class ------------
 GetClass:
@@ -457,15 +456,18 @@ GetClass:
     jmp GetClass
 
 ClassEconomy:
-    fld basePrice
-    fstp classPrice
+    mov eax, basePrice
+    mov classPrice, eax
     jmp AskInsurance
 
 ClassBusiness:
-    ; classPrice = basePrice * 1.4
-    fld basePrice
-    fmul businessMultiplier
-    fstp classPrice
+    ; classPrice = basePrice * 1.4  ->  = (base * 14) / 10
+    mov eax, basePrice
+    mov ebx, 14
+    mul ebx                 ; EDX:EAX = base * 14
+    mov ebx, 10
+    div ebx                 ; EAX = (base*14)/10
+    mov classPrice, eax
     jmp AskInsurance
 
 AskInsurance:
@@ -483,14 +485,12 @@ AskInsurance:
     jmp AskInsurance
 
 InsYes:
-    fld insurancePrice
-    fstp insPrice
+    mov insPrice, 100
     call PassengerInputModule
     jmp selectTicketEnd
 
 InsNo:
-    fldz                    ; load 0.0
-    fstp insPrice
+    mov insPrice, 0
     call PassengerInputModule
     jmp selectTicketEnd
 
@@ -506,29 +506,29 @@ ComputeTotal PROC
 ;-----------------------------------------------------------
 
 ; ------------ compute total price ------------
-    fld classPrice
-    fadd insPrice
-    fstp totalPrice
+    mov eax, classPrice
+    add eax, insPrice
+    mov totalPrice, eax
 
 ; ----------- display breakdown -----------
     call Crlf
     mov edx, OFFSET msgBase
     call WriteString
-    fld basePrice
-    call WriteFloat2Decimal
+    mov eax, basePrice
+    call WriteIntegerAsMoney
     call Crlf
 
     mov edx, OFFSET msgClass
     call WriteString
-    fld classPrice
-    fsub basePrice        ; show adjustment compared to base
-    call WriteFloat2Decimal
+    mov eax, classPrice
+    sub eax, basePrice        ; show adjustment compared to base
+    call WriteIntegerAsMoney
     call Crlf
 
     mov edx, OFFSET msgIns
     call WriteString
-    fld insPrice
-    call WriteFloat2Decimal
+    mov eax, insPrice
+    call WriteIntegerAsMoney
     call Crlf
 
     mov edx, OFFSET msgSep
@@ -537,8 +537,8 @@ ComputeTotal PROC
 
     mov edx, OFFSET msgTotal
     call WriteString
-    fld totalPrice
-    call WriteFloat2Decimal
+    mov eax, totalPrice
+    call WriteIntegerAsMoney
     call Crlf
 
     ;call Crlf
@@ -679,6 +679,21 @@ DisplayCents:
 WriteFloat2Decimal ENDP
 
 ;-----------------------------------------------------------
+WriteIntegerAsMoney PROC
+;
+; Displays an integer as money format with .00
+; Input: EAX = integer value to display
+;-----------------------------------------------------------
+    call WriteDec
+    mov edx, OFFSET dotStr
+    call WriteString
+    mov al, '0'
+    call WriteChar
+    call WriteChar
+    ret
+WriteIntegerAsMoney ENDP
+
+;-----------------------------------------------------------
 SummaryModule PROC
 ;
 ; Displays booking summary and calculates total price with membership discounts
@@ -703,10 +718,10 @@ RegularCustomer:
 
 CalculatePrice:
     ; Calculate base total (price * passengers)
-    fild pax
-    fld totalPrice
-    fmul
-    fstp total
+    mov eax, totalPrice
+    mov ebx, pax
+    mul ebx
+    mov total, eax
 
     ; Apply discount if member
     cmp currentUser, 2
@@ -775,8 +790,8 @@ DisplayLoop:
     jmp Done
 
 ShowRegularPrice:
-    fld total
-    call WriteFloat2Decimal
+    mov eax, total
+    call WriteIntegerAsMoney
     call Crlf
 
 Done:
@@ -799,7 +814,7 @@ SummaryModule ENDP
 ;-----------------------------------------------------------
 ReadMoney PROC
 ;
-; Reads monetary input from user and converts to REAL4 value
+; Reads monetary input from user and converts to integer value
 ;-----------------------------------------------------------
 
     mov edx, OFFSET inputStr
@@ -829,25 +844,20 @@ parse_int:
     inc esi
     jmp parse_int
 int_done:
-    ; Convert integer to REAL4
-    push eax
-    fild DWORD PTR [esp]
-    fstp paymentAmount
-    pop eax
+    mov paymentAmount, eax
     ret
 invalid_input:
-    fldz
-    fstp paymentAmount
+    mov paymentAmount, 0
     ret
 ReadMoney ENDP
 
 ;-----------------------------------------------------------
 WriteMoney PROC
 ;
-; Prints a monetary value with 2 decimal places using WriteFloat2Decimal
-; Input: ST(0) should contain the REAL4 value to display
+; Prints a monetary value with .00 format
+; Input: EAX = integer value to display
 ;-----------------------------------------------------------
-    call WriteFloat2Decimal
+    call WriteIntegerAsMoney
     ret
 WriteMoney ENDP
 
@@ -882,21 +892,15 @@ getPayment:
     mov edx, OFFSET promptPay
     call WriteString
     call ReadMoney
-    fld paymentAmount      ; paymentAmount = user input
-    fld totalPrice         ; totalPrice = amount due
-    fcompp                 ; compare paymentAmount with totalPrice
-    fstsw ax
-    sahf
-    jb not_enough_balance  ; if paymentAmount < totalPrice
-    
-    ; Calculate change = paymentAmount - totalPrice
-    fld paymentAmount
-    fsub totalPrice
-    fstp change
-    
+    mov eax, paymentAmount      ; paymentAmount = user input
+    mov ebx, totalPrice         ; totalPrice = amount due
+    cmp eax, ebx
+    jl not_enough_balance
+    sub eax, ebx                ; change = paymentAmount - totalPrice
+    mov change, eax
     mov edx, OFFSET promptChange
     call WriteString
-    fld change
+    mov eax, change
     call WriteMoney
     call Crlf
     mov edx, OFFSET promptSuccess
