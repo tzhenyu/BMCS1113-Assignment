@@ -33,6 +33,7 @@ user2name   DB "67890",0        ; Username for user 2 (membership)
 user2pw     DB "9999",0         ; Password for user 2
 
 ; --- Messages ---
+welcomeMessage      DB "Welcome to the Flight Booking System!",0
 loginMessage         DB "Please enter your username: ",0
 passwordMessage      DB "Please enter your password: ",0
 invalidMessage       DB "Invalid choice! Press [ENTER] to try again.",0
@@ -106,7 +107,7 @@ pax DWORD ?
 customerId BYTE CUSTOMER_ID_SIZE DUP(?)
 passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
 passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
-isMember DWORD 0  ; 0 = not member, 1 = member
+; isMember DWORD 0  ; 0 = not member, 1 = member
 
 ; For float formatting
 tempInt DWORD ?
@@ -115,7 +116,6 @@ hundred REAL8 100.0
 ; Module 6 Data
 summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
 paxTitle BYTE "----- Passenger Info -----",0Dh,0Ah,0
-memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
 memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
 normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
 priceLabel   BYTE "Total Price: RM",0
@@ -126,7 +126,7 @@ passportLine BYTE "Passport: ",0
 separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
 ; Pricing
-discount REAL8 0.15
+discount REAL8 0.10
 total REAL8 ?
 discountedTotal REAL8 ?
 
@@ -176,8 +176,20 @@ login PROC
     call clrscr
     mov currentUser, 0 ; Reset current user
 
+
 login_loop:
+
     call clrscr
+    mov edx, OFFSET separatorLine
+    call WriteString
+
+    mov edx, OFFSET welcomeMessage
+    call WriteString
+    call crlf
+    mov edx, OFFSET separatorLine
+    call WriteString
+    
+
     mov edx, OFFSET loginMessage
     call WriteString   ; Prompt for username
     call crlf
@@ -202,7 +214,7 @@ login_loop:
     jmp login_loop     ; Retry login
 
 user1_found:
-    call clrscr
+    call crlf
     mov currentUser, 1
     mov edx, OFFSET user1found
     call WriteString   ; Greet user 1
@@ -225,7 +237,7 @@ user1_found:
     jmp login_loop     ; Retry login
 
 user2_found:
-    call clrscr
+    call crlf
     mov currentUser, 2
     mov edx, OFFSET user2found
     call WriteString   ; Greet user 2
@@ -571,7 +583,7 @@ GetPassengerData:
     mov esi, 0
 
 PassengerLoop:
-    call Crlf
+    
     push ecx  ; Save loop counter
     
     ; Get passenger name (offset = esi * NAME_SIZE)
@@ -584,7 +596,6 @@ PassengerLoop:
     add edx, eax
     mov ecx, NAME_SIZE
     call ReadString
-    call Crlf
 
     ; Get passport number (offset = esi * PASSPORT_SIZE)
     mov edx, OFFSET promptPassport
@@ -675,16 +686,12 @@ SummaryModule PROC
     call clrscr
     mov edx, OFFSET summaryTitle
     call WriteString
-    call Crlf
+
 
     ; Display membership status message if member
-    cmp isMember, 1
-    jne RegularCustomer
-    
-    ; Show membership detected message
-    mov edx, OFFSET memberDetected
-    call WriteString
-    
+    cmp currentUser, 1
+    je RegularCustomer
+
     mov edx, OFFSET memberStatus
     call WriteString
     jmp CalculatePrice
@@ -701,15 +708,15 @@ CalculatePrice:
     fstp total
 
     ; Apply discount if member
-    cmp isMember, 1
-    jne DisplayPassengers
+    cmp currentUser, 2
 
-    fld total
-    fld discount
-    fmul
-    fld total
-    fsub
-    fstp discountedTotal
+    ;fld total
+    ;fld discount
+    ;fmul
+    ;fld total
+    ;fsub
+    ;fstp discountedTotal
+
 
     ; Display passenger details
 DisplayPassengers:
@@ -757,8 +764,8 @@ DisplayLoop:
     ;call WriteString
 
     ; Display appropriate total
-    cmp isMember, 1
-    ;jne ShowRegularPrice
+    cmp currentUser, 1
+    jne ShowRegularPrice
 
     ; Show discounted price
     ;fld discountedTotal
@@ -766,10 +773,10 @@ DisplayLoop:
     ;call Crlf
     jmp Done
 
-;ShowRegularPrice:
+ShowRegularPrice:
     fld total
     call WriteFloat2Decimal
-    ;call Crlf
+    call Crlf
 
 Done:
     ; Display final separator
