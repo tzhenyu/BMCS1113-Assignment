@@ -148,7 +148,7 @@ inputStr BYTE 32 DUP(0)
 totalBill DWORD 3500 ; Example total bill amount
 paymentAmount DWORD ?
 change DWORD ?
-dotStr BYTE ".",0
+
 
 
 ; ============================================================
