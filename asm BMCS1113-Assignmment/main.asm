@@ -760,6 +760,7 @@ SummaryModule PROC
 ; Module 6: Displays booking summary and calculates price
 ;-----------------------------------------------------------
     ; Display header
+    call Crlf
     mov edx, OFFSET summaryTitle
     call WriteString
     call Crlf

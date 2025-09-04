@@ -59,7 +59,6 @@ menuLine7   DB "| [4] | Eastern Horizon Air  | Kota Kinabalu  | Manila         |
 menuLine8   DB "| [5] | Jet2 Holiday         | Kuching        | Jakarta        | 2025-08-19     |  Two-way  | 2025-08-24 |     5400    |",0
 menuLine9   DB "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
 menuLine10  DB "Select [0] to log out.",0
-menuLine11  DB "Please select an option from the menu above.",0
 
 ; ------------------------------------------------------------
 ; YAN ZHE - Flight Selection and Price Calculation Module
@@ -68,16 +67,16 @@ menuLine11  DB "Please select an option from the menu above.",0
 flightPrices DWORD 525,2700,7500,3300,5400
 
 ; prompts and messages
-promptFlight  BYTE "Enter Flight ID (1-5): ",0
-promptClass   BYTE "Choose class: 1=Economy 2=Business : ",0
-promptIns     BYTE "Add insurance? 1=Yes 2=No : ",0
+promptFlight  BYTE "Choose your option [0-5]: ",0
+promptClass   BYTE "Choose class: [1] Economy [2] Business : ",0
+promptIns     BYTE "Add insurance? [1] Yes [2] No : ",0
 invalidMsg    BYTE "Invalid input! Please try again.",0
 
-msgBase       BYTE "Base Price: ",0
-msgClass      BYTE "Class Adj: ",0
-msgIns        BYTE "Insurance: ",0
-msgSep        BYTE "-----------------------------",0
-msgTotal      BYTE "Total: ",0
+msgBase       BYTE "Base Price: RM",0
+msgClass      BYTE " Class Adj: RM",0
+msgIns        BYTE " Insurance: RM",0
+msgSep        BYTE "---------------------",0
+msgTotal      BYTE "     Total: RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
@@ -96,11 +95,11 @@ PASSPORT_SIZE = 20
 CUSTOMER_ID_SIZE = 10
 
 ; Module 5 Data
-promptPax      BYTE "Number of passengers (1-5): ", 0
+promptPax      BYTE "Number of passengers [1-5]: ", 0
 promptName     BYTE "Passenger name: ", 0
 promptPassport BYTE "Passport number: ", 0
 promptCustomer BYTE "Customer ID (C12345 format): ", 0
-errPaxMsg      BYTE "Invalid input. Please enter 1-5: ", 0
+errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
 
 ; Passenger Data
 pax DWORD ?
@@ -115,6 +114,7 @@ hundred REAL8 100.0
 
 ; Module 6 Data
 summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
+paxTitle BYTE "----- Passenger Info -----",0Dh,0Ah,0
 memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
 memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
 normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
@@ -126,7 +126,6 @@ passportLine BYTE "Passport: ",0
 separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
 ; Pricing
-;basePrice REAL8 199.99
 discount REAL8 0.15
 total REAL8 ?
 discountedTotal REAL8 ?
@@ -137,11 +136,11 @@ discountedTotal REAL8 ?
 ; Payment and booking variables
 paymentMethod BYTE ? ; 1=Credit Card, 2=E-wallet
 bookAnother BYTE ?   ; 1=Yes, 0=No
-promptPayment BYTE "Select payment method: 1. Credit Card  2. E-wallet | Your Choice: ",0
+promptPayment BYTE "Select payment method: [1] Credit Card  [2] E-wallet | Your Choice: ",0
 promptSuccess BYTE "Payment successful. Flight booked!",0
 promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
 promptInvalid BYTE "Invalid input. Try again.",0
-promptPay BYTE "Pay Amount: ",0
+promptPay BYTE "Pay Amount: RM",0
 promptChange BYTE "Your change is: ",0
 promptNotEnough BYTE "Not enough balance. Please check again",0
 inputStr BYTE 32 DUP(0)
@@ -159,8 +158,7 @@ dotStr BYTE ".",0
 ; ------------------------------------------------------------
 ; ZHEN YU - User Authentication and Main Menu Procedures
 ; ------------------------------------------------------------
-; Program Entry Point
-; ------------------------------------------------------------
+
 ;-----------------------------------------------------------
 main PROC
 ;
@@ -253,126 +251,6 @@ login_end:
     ret
 login ENDP
 
-;-----------------------------------------------------------
-main_menu PROC
-;
-; Displays the menu and handles user selection
-;-----------------------------------------------------------
-    call clrscr
-
-    ; Display personalized greeting based on user
-    mov al, currentUser
-    cmp al, 1
-    je show_user1_greet
-    cmp al, 2
-    je show_user2_greet
-    jmp show_menu
-
-show_user1_greet:
-    mov edx, OFFSET greetUser1
-    call WriteString
-    call crlf
-    jmp show_menu
-
-show_user2_greet:
-    mov edx, OFFSET greetUser2
-    call WriteString
-    call crlf
-
-show_menu:
-    ; Display all menu lines
-    mov edx, OFFSET menuLine1
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine2
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine3
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine4
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine5
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine6
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine7
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine8
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine9
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine10
-    call WriteString
-    call crlf
-    mov edx, OFFSET menuLine11
-    call WriteString
-    call crlf
-
-    ; Read user option selection
-    mov edx, OFFSET userInput
-    mov ecx, SIZEOF userInput
-    call ReadString
-
-    ; Handle menu options
-    INVOKE Str_compare, ADDR userInput, ADDR selection0
-    je login            ; Log out and return to login
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection1
-    je option1_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection2
-    je option2_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection3
-    je option3_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection4
-    je option4_selected
-
-    INVOKE Str_compare, ADDR userInput, ADDR selection5
-    je option5_selected
-
-    ; If invalid option selected
-    mov edx, OFFSET invalidMessage
-    call WriteString
-    call waitEnter
-    jmp main_menu
-
-option1_selected:
-    mov ax, 525
-    mov currentPrice, ax         ; Store price for option 1
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option2_selected:
-    mov ax, 2700
-    mov currentPrice, ax         ; Store price for option 2
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option3_selected:
-    mov ax, 7500
-    mov currentPrice, ax         ; Store price for option 3
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option4_selected:
-    mov ax, 3300
-    mov currentPrice, ax         ; Store price for option 4
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-option5_selected:
-    mov ax, 5400
-    mov currentPrice, ax         ; Store price for option 5
-    ; ADD FUNCTION TO HANDLE THE SELECTED OPTION HERE
-
-    ; PRICES ARE STORED IN currentPrice VARIABLE FOR FURTHER CALCULATIONS
-
-main_menu ENDP
 
 ;-----------------------------------------------------------
 waitEnter PROC
@@ -417,7 +295,6 @@ show_user2_greet:
     call WriteString
     call crlf
 
-   ;show menu
 show_menu:
        
     mov edx, OFFSET menuLine1
@@ -456,12 +333,20 @@ show_menu:
     call WriteString
     call Crlf
 
+    mov edx, OFFSET menuLine10
+    call WriteString
+    call Crlf
+
+    call Crlf
+
 
 ; -------- get flight id (with validation) --------
 GetFlight:
     mov edx, OFFSET promptFlight
     call WriteString
     call ReadInt           ; EAX = user's input
+    cmp eax, 0
+    je LogoutSelected      ; If user selects 0, go to logout
     cmp eax, 1
     jl InvalidFlight
     cmp eax, 5
@@ -474,6 +359,10 @@ InvalidFlight:
     call WriteString
     call Crlf
     jmp GetFlight
+
+LogoutSelected:
+    call login             ; Call login function when user selects 0
+    ret                    ; Return from selectTicket procedure
 
 AfterFlight:
     ; clear screen and show only the selected row (with borders)
@@ -637,11 +526,12 @@ ComputeTotal PROC
     call WriteString
     mov eax, totalPrice
     call WriteDec
-
     call Crlf
-    mov edx, OFFSET nextSessionMessage
-    call WriteString
-    call waitEnter
+
+    ;call Crlf
+    ;mov edx, OFFSET nextSessionMessage
+    ;call WriteString
+    ;call waitEnter
     ret
 ComputeTotal ENDP
 
@@ -657,6 +547,9 @@ PassengerInputModule PROC
     ;call clrscr
     ; Get number of passengers
 GetPaxCount:
+    call Crlf
+    mov edx, OFFSET paxTitle
+    call WriteString
     mov edx, OFFSET promptPax
     call WriteString
     call ReadInt
@@ -678,6 +571,7 @@ GetPassengerData:
     mov esi, 0
 
 PassengerLoop:
+    call Crlf
     push ecx  ; Save loop counter
     
     ; Get passenger name (offset = esi * NAME_SIZE)
@@ -778,6 +672,7 @@ SummaryModule PROC
 ; Displays booking summary and calculates total price with membership discounts
 ;-----------------------------------------------------------
     ; Display header
+    call clrscr
     mov edx, OFFSET summaryTitle
     call WriteString
     call Crlf
@@ -847,7 +742,7 @@ DisplayLoop:
     add edx, eax
     call WriteString
     call Crlf
-    ;call Crlf
+    call Crlf  ; Add extra line break between passengers
 
     pop ecx
     inc esi
@@ -955,17 +850,14 @@ payment PROC
 ;
 ; Handles payment processing, change calculation, and booking confirmation
 ;-----------------------------------------------------------
-    call clrscr                        ; Clear the screen every time you show the payment screen
-    mov edx, OFFSET msgTotal
-    call WriteString                   ; Print "Total: "
-    mov eax, totalPrice
-    call WriteMoney                    ; Print as decimal (e.g., 3880.00)
+    ;call clrscr                        ; Clear the screen every time you show the payment screen
+    ;mov edx, OFFSET msgTotal
+    ;call WriteString                   ; Print "Total: "
+    ;mov eax, totalPrice
+    ;call WriteMoney                    ; Print as decimal (e.g., 3880.00)
     call Crlf                          ; New line
 
-
-
 mainLoop:
-
     mov edx, OFFSET promptPayment
     call WriteString                   ; Print payment method prompt
     call ReadInt
@@ -1028,8 +920,8 @@ exitApp:
     call crlf
     mov edx, OFFSET byeMessage
     call WriteString
-    ret
-    ;int 21h
+    call crlf
+    exit                      
 
 payment ENDP
 
