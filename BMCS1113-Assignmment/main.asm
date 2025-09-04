@@ -132,7 +132,7 @@ promptPayment BYTE "Select payment method: 1. Credit Card  2. E-wallet | Your Ch
 promptSuccess BYTE "Payment successful. Flight booked!",0
 promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
 promptInvalid BYTE "Invalid input. Try again.",0
-promptPay BYTE "Pay Amount (e.g. 3500.75): ",0
+promptPay BYTE "Pay Amount: ",0
 promptChange BYTE "Your change is: ",0
 promptNotEnough BYTE "Not enough balance. Please check again",0
 inputStr BYTE 32 DUP(0)
@@ -564,15 +564,27 @@ AskInsurance:
     mov edx, OFFSET invalidMsg
     call WriteString
     call Crlf
+    ;call passengerInputModule
     jmp AskInsurance
 
 InsYes:
     mov insPrice, 100
-    jmp ComputeTotal
+    call PassengerInputModule
+    jmp selectTicketEnd
+
 InsNo:
     mov insPrice, 0
+    call PassengerInputModule
+    jmp selectTicketEnd
 
-ComputeTotal:
+selectTicketEnd:
+    ret
+
+selectTicket ENDP
+
+; seperate computeTotal out from selectTicket
+ComputeTotal PROC
+    ; ------------ compute total price ------------
     mov eax, classPrice
     add eax, insPrice
     mov totalPrice, eax
@@ -611,8 +623,8 @@ ComputeTotal:
     mov edx, OFFSET nextSessionMessage
     call WriteString
     call waitEnter
-    call PassengerInputModule
-selectTicket ENDP
+    ret
+ComputeTotal ENDP
 
 ; GUAN RONG PART
 
@@ -622,7 +634,7 @@ PassengerInputModule PROC
 ;
 ; Module 5: Collects passenger information
 ;-----------------------------------------------------------
-    call clrscr
+    ;call clrscr
     ; Get number of passengers
 GetPaxCount:
     mov edx, OFFSET promptPax
@@ -675,7 +687,7 @@ PassengerLoop:
     mov edx, OFFSET nextSessionMessage
     call writeString
     call waitEnter
-    call clrscr
+    ;call clrscr
 
     pop ecx   ; Restore loop counter
     inc esi
@@ -815,42 +827,43 @@ DisplayLoop:
     add edx, eax
     call WriteString
     call Crlf
-    call Crlf
+    ;call Crlf
 
     pop ecx
     inc esi
     loop DisplayLoop
 
     ; Display separator
-    mov edx, OFFSET separatorLine
-    call WriteString
+    ;mov edx, OFFSET separatorLine
+    ;call WriteString
 
     ; Display pricing information
-    mov edx, OFFSET priceLabel
-    call WriteString
+    ;mov edx, OFFSET priceLabel
+    ;call WriteString
 
     ; Display appropriate total
     cmp isMember, 1
-    jne ShowRegularPrice
+    ;jne ShowRegularPrice
 
     ; Show discounted price
-    fld discountedTotal
-    call WriteFloat2Decimal
-    call Crlf
+    ;fld discountedTotal
+    ;call WriteFloat2Decimal
+    ;call Crlf
     jmp Done
 
-ShowRegularPrice:
+;ShowRegularPrice:
     fld total
     call WriteFloat2Decimal
-    call Crlf
+    ;call Crlf
 
 Done:
     ; Display final separator
-    mov edx, OFFSET separatorLine
-    call WriteString
-    mov edx, OFFSET nextSessionMessage
-    call WriteString
-    call waitEnter
+    ;mov edx, OFFSET separatorLine
+    ;call WriteString
+    ;mov edx, OFFSET nextSessionMessage
+    ;call WriteString
+    ;call waitEnter
+    call computeTotal
     call payment
     ret
 
@@ -920,13 +933,13 @@ int_done:
     jne invalid_input
 dec_done:
     add ebx, ecx       ; Add decimal part to result
-    mov paymentAmount, ebx
+    mov totalPrice, ebx
     ret
 no_decimal:
-    mov paymentAmount, ebx
+    mov totalPrice, ebx
     ret
 invalid_input:
-    mov paymentAmount, 0
+    mov totalPrice, 0
     ret
 ReadMoney ENDP
 
@@ -969,15 +982,19 @@ mainLoop:
     call Crlf
     jmp mainLoop
 
+    ; TODO: REMOVE PAYMENTAMOUNT VARIABLE AND USE ACTUAL PAYMENT LOGIC
 payment_ok:
 getPayment:
     mov edx, OFFSET promptPay
     call WriteString
     call ReadMoney
+    mov eax, totalPrice        ; totalPrice now holds the payment amount (from ReadMoney)
+    mov paymentAmount, eax     ; store payment amount
     mov eax, paymentAmount
-    cmp eax, totalBill
+    mov ebx, totalPrice        ; totalPrice should be the amount due
+    cmp eax, ebx
     jl not_enough_balance
-    sub eax, totalBill
+    sub eax, ebx               ; change = paymentAmount - totalPrice
     mov change, eax
     mov edx, OFFSET promptChange
     call WriteString
