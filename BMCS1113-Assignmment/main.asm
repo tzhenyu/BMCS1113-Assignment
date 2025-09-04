@@ -5,6 +5,9 @@ INCLUDE Irvine32.inc
 ; ============================================================
 .data
 
+; ------------------------------------------------------------
+; ZHEN YU - User Authentication and Main Menu Module
+; ------------------------------------------------------------
 ; --- User State Variables ---
 currentUser          BYTE 0      ; Tracks the currently logged-in user (0 = none, 1 = user1, 2 = user2)
 currentPrice         WORD 0      ; Stores the price of the selected trip
@@ -58,7 +61,9 @@ menuLine9   DB "+-----+----------------------+----------------+----------------+
 menuLine10  DB "Select [0] to log out.",0
 menuLine11  DB "Please select an option from the menu above.",0
 
-; YAN ZHE
+; ------------------------------------------------------------
+; YAN ZHE - Flight Selection and Price Calculation Module
+; ------------------------------------------------------------
 ; prices used for calculations (must match the table above)
 flightPrices DWORD 525,2700,7500,3300,5400
 
@@ -81,50 +86,54 @@ classPrice    DWORD ?
 insPrice      DWORD ?
 totalPrice    DWORD ?
 
-; GUAN RONG
-    ; Constants
-    MAX_PASSENGERS = 5
-    NAME_SIZE = 50
-    PASSPORT_SIZE = 20
-    CUSTOMER_ID_SIZE = 10
+; ------------------------------------------------------------
+; GUAN RONG - Passenger Information and Booking Summary Module
+; ------------------------------------------------------------
+; Constants
+MAX_PASSENGERS = 5
+NAME_SIZE = 50
+PASSPORT_SIZE = 20
+CUSTOMER_ID_SIZE = 10
 
-    ; Module 5 Data
-    promptPax      BYTE "Number of passengers (1-5): ", 0
-    promptName     BYTE "Passenger name: ", 0
-    promptPassport BYTE "Passport number: ", 0
-    promptCustomer BYTE "Customer ID (C12345 format): ", 0
-    errPaxMsg      BYTE "Invalid input. Please enter 1-5: ", 0
-    
-    ; Passenger Data
-    pax DWORD ?
-    customerId BYTE CUSTOMER_ID_SIZE DUP(?)
-    passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
-    passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
-    isMember DWORD 0  ; 0 = not member, 1 = member
+; Module 5 Data
+promptPax      BYTE "Number of passengers (1-5): ", 0
+promptName     BYTE "Passenger name: ", 0
+promptPassport BYTE "Passport number: ", 0
+promptCustomer BYTE "Customer ID (C12345 format): ", 0
+errPaxMsg      BYTE "Invalid input. Please enter 1-5: ", 0
 
-    ; For float formatting
-    tempInt DWORD ?
-    hundred REAL8 100.0
+; Passenger Data
+pax DWORD ?
+customerId BYTE CUSTOMER_ID_SIZE DUP(?)
+passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
+passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
+isMember DWORD 0  ; 0 = not member, 1 = member
 
-    ; Module 6 Data
-    summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
-    memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
-    memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
-    normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
-    priceLabel   BYTE "Total Price: RM",0
-    newline      BYTE 0Dh,0Ah,0
-    passengerHeader BYTE "Passenger Details:",0Dh,0Ah,0
-    passengerLine BYTE "Name: ",0
-    passportLine BYTE "Passport: ",0
-    separatorLine BYTE "-----------------------------",0Dh,0Ah,0
+; For float formatting
+tempInt DWORD ?
+hundred REAL8 100.0
 
-    ; Pricing
-    ;basePrice REAL8 199.99
-    discount REAL8 0.15
-    total REAL8 ?
-    discountedTotal REAL8 ?
+; Module 6 Data
+summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
+memberDetected BYTE "Membership detected! 15% discount applied!",0Dh,0Ah,0
+memberStatus BYTE "Status: Member (15% discount)",0Dh,0Ah,0
+normalStatus BYTE "Status: Regular Customer",0Dh,0Ah,0
+priceLabel   BYTE "Total Price: RM",0
+newline      BYTE 0Dh,0Ah,0
+passengerHeader BYTE "Passenger Details:",0Dh,0Ah,0
+passengerLine BYTE "Name: ",0
+passportLine BYTE "Passport: ",0
+separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
-; ADAM
+; Pricing
+;basePrice REAL8 199.99
+discount REAL8 0.15
+total REAL8 ?
+discountedTotal REAL8 ?
+
+; ------------------------------------------------------------
+; ADAM - Payment Processing and Transaction Module
+; ------------------------------------------------------------
 ; Payment and booking variables
 paymentMethod BYTE ? ; 1=Credit Card, 2=E-wallet
 bookAnother BYTE ?   ; 1=Yes, 0=No
@@ -148,18 +157,24 @@ dotStr BYTE ".",0
 .code
 
 ; ------------------------------------------------------------
+; ZHEN YU - User Authentication and Main Menu Procedures
+; ------------------------------------------------------------
 ; Program Entry Point
 ; ------------------------------------------------------------
+;-----------------------------------------------------------
 main PROC
+;
+; Program entry point - starts the flight booking system
+;-----------------------------------------------------------
     call login         ; Start with login procedure
     exit               ; Exit program after login returns (should not happen)
 main ENDP
 
-; ------------------------------------------------------------
-; Login Procedure
-; Handles user authentication and loops until successful login
-; ------------------------------------------------------------
+;-----------------------------------------------------------
 login PROC
+;
+; Handles user authentication and loops until successful login
+;-----------------------------------------------------------
     call clrscr
     mov currentUser, 0 ; Reset current user
 
@@ -238,11 +253,11 @@ login_end:
     ret
 login ENDP
 
-; ------------------------------------------------------------
-; Main Menu Procedure
-; Displays the menu and handles user selection
-; ------------------------------------------------------------
+;-----------------------------------------------------------
 main_menu PROC
+;
+; Displays the menu and handles user selection
+;-----------------------------------------------------------
     call clrscr
 
     ; Display personalized greeting based on user
@@ -359,11 +374,11 @@ option5_selected:
 
 main_menu ENDP
 
-; ------------------------------------------------------------
-; Wait for Enter Key Procedure
-; Waits until the user presses the Enter key
-; ------------------------------------------------------------
+;-----------------------------------------------------------
 waitEnter PROC
+;
+; Waits until the user presses the Enter key
+;-----------------------------------------------------------
 waitLoop:
     call ReadChar
     cmp al, 13                  ; 13 = ASCII code for Enter
@@ -372,12 +387,14 @@ waitLoop:
 waitEnter ENDP
 
 ; ------------------------------------------------------------
-;  YAN ZHE PART PROCEDURE
-; 
+; YAN ZHE - Flight Selection and Price Calculation Procedures
 ; ------------------------------------------------------------
 
-
+;-----------------------------------------------------------
 selectTicket PROC
+;
+; Displays flight menu, handles flight selection, class choice, and insurance options
+;-----------------------------------------------------------
 
     call Clrscr
 
@@ -440,7 +457,7 @@ show_menu:
     call Crlf
 
 
-    ; -------- get flight id (with validation) --------
+; -------- get flight id (with validation) --------
 GetFlight:
     mov edx, OFFSET promptFlight
     call WriteString
@@ -461,8 +478,6 @@ InvalidFlight:
 AfterFlight:
     ; clear screen and show only the selected row (with borders)
     call Clrscr
-
-
 
     mov edx, OFFSET menuLine1
     call WriteString
@@ -582,16 +597,18 @@ selectTicketEnd:
 
 selectTicket ENDP
 
-; ------------------------------------------------------------
-; Compute Total Procedure
-; ------------------------------------------------------------
+;-----------------------------------------------------------
 ComputeTotal PROC
-    ; ------------ compute total price ------------
+;
+; Computes total price and displays price breakdown
+;-----------------------------------------------------------
+
+; ------------ compute total price ------------
     mov eax, classPrice
     add eax, insPrice
     mov totalPrice, eax
 
-    ; ----------- display breakdown -----------
+; ----------- display breakdown -----------
     call Crlf
     mov edx, OFFSET msgBase
     call WriteString
@@ -628,13 +645,14 @@ ComputeTotal PROC
     ret
 ComputeTotal ENDP
 
-; GUAN RONG PART
-
+; ------------------------------------------------------------
+; GUAN RONG - Passenger Information and Booking Summary Procedures
+; ------------------------------------------------------------
 
 ;-----------------------------------------------------------
 PassengerInputModule PROC
 ;
-; Module 5: Collects passenger information
+; Collects passenger information including names and passport numbers
 ;-----------------------------------------------------------
     ;call clrscr
     ; Get number of passengers
@@ -757,7 +775,7 @@ WriteFloat2Decimal ENDP
 ;-----------------------------------------------------------
 SummaryModule PROC
 ;
-; Module 6: Displays booking summary and calculates price
+; Displays booking summary and calculates total price with membership discounts
 ;-----------------------------------------------------------
     ; Display header
     mov edx, OFFSET summaryTitle
@@ -871,8 +889,15 @@ Done:
 
 SummaryModule ENDP
 
-; ADAM PART
+; ------------------------------------------------------------
+; ADAM - Payment Processing and Transaction Procedures
+; ------------------------------------------------------------
+
+;-----------------------------------------------------------
 ReadMoney PROC
+;
+; Reads monetary input from user and converts to integer value
+;-----------------------------------------------------------
 
     mov edx, OFFSET inputStr
     mov ecx, LENGTHOF inputStr
@@ -909,8 +934,11 @@ invalid_input:
     ret
 ReadMoney ENDP
 
-; Prints a value in cents as a decimal (e.g., 1250 -> 12.50)
+;-----------------------------------------------------------
 WriteMoney PROC
+;
+; Prints a monetary value in decimal format (e.g., 1250 -> 12.50)
+;-----------------------------------------------------------
     push eax
     call WriteDec         ; Print the integer part (e.g., 3780)
     mov edx, OFFSET dotStr
@@ -922,7 +950,11 @@ WriteMoney PROC
     ret
 WriteMoney ENDP
 
+;-----------------------------------------------------------
 payment PROC
+;
+; Handles payment processing, change calculation, and booking confirmation
+;-----------------------------------------------------------
     call clrscr                        ; Clear the screen every time you show the payment screen
     mov edx, OFFSET msgTotal
     call WriteString                   ; Print "Total: "
