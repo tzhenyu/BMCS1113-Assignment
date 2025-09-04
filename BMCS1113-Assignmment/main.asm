@@ -73,11 +73,16 @@ promptClass   BYTE "Choose class: [1] Economy [2] Business : ",0
 promptIns     BYTE "Add insurance? [1] Yes [2] No : ",0
 invalidMsg    BYTE "Invalid input! Please try again.",0
 
-msgBase       BYTE "Base Price: RM",0
-msgClass      BYTE " Class Adj: RM",0
-msgIns        BYTE " Insurance: RM",0
-msgSep        BYTE "---------------------",0
-msgTotal      BYTE "     Total: RM",0
+msgBase       BYTE "Base Price:      RM",0
+msgClass      BYTE "Class Adj:       RM",0
+msgIns        BYTE "Insurance:       RM",0
+msgSep        BYTE "-----------------------------",0
+msgTotal      BYTE "Total:           RM",0
+msgPerPax     BYTE "Pax:             ",0
+msgDiscount   BYTE "Discount (15%):  -RM",0
+msgSepLong    BYTE "-----------------------------",0
+msgSepLong2   BYTE "-----------------------------",0
+msgGrandTotal BYTE "Grand Total:     RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
@@ -105,9 +110,8 @@ errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
 ; Passenger Data
 pax DWORD ?
 customerId BYTE CUSTOMER_ID_SIZE DUP(?)
-passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
-passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
-; isMember DWORD 0  ; 0 = not member, 1 = member
+passengerNames BYTE MAX_PASSENGERS * NAME_SIZE DUP(0)
+passports BYTE MAX_PASSENGERS * PASSPORT_SIZE DUP(0)
 
 ; For float formatting
 tempInt DWORD ?
@@ -127,9 +131,10 @@ passportLine BYTE "Passport: ",0
 separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
 ; Pricing
-discount REAL8 0.10
+discount REAL8 0.15
 total DWORD ?
 discountedTotal DWORD ?
+discountAmount DWORD ?
 
 ; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Module
@@ -481,16 +486,21 @@ AskInsurance:
     mov edx, OFFSET invalidMsg
     call WriteString
     call Crlf
-    ;call passengerInputModule
     jmp AskInsurance
 
 InsYes:
     mov insPrice, 100
-    call PassengerInputModule
-    jmp selectTicketEnd
+    jmp AfterInsurance
 
 InsNo:
     mov insPrice, 0
+
+AfterInsurance:
+    ; Compute total price for one passenger
+    mov eax, classPrice
+    add eax, insPrice
+    mov totalPrice, eax
+    
     call PassengerInputModule
     jmp selectTicketEnd
 
@@ -506,18 +516,22 @@ ComputeTotal PROC
 ;-----------------------------------------------------------
 
 ; ------------ compute total price ------------
-    mov eax, classPrice
-    add eax, insPrice
-    mov totalPrice, eax
+    mov eax, totalPrice
+    mov ebx, pax
+    mul ebx
+    mov total, eax
 
 ; ----------- display breakdown -----------
     call Crlf
+    
+    ; Display base price
     mov edx, OFFSET msgBase
     call WriteString
     mov eax, basePrice
     call WriteIntegerAsMoney
     call Crlf
 
+    ; Display class adjustment
     mov edx, OFFSET msgClass
     call WriteString
     mov eax, classPrice
@@ -525,28 +539,72 @@ ComputeTotal PROC
     call WriteIntegerAsMoney
     call Crlf
 
+    ; Display insurance
     mov edx, OFFSET msgIns
     call WriteString
     mov eax, insPrice
     call WriteIntegerAsMoney
     call Crlf
 
-    mov edx, OFFSET msgSep
+    ; Display longer separator
+    mov edx, OFFSET msgSepLong2
     call WriteString
     call Crlf
 
+    ; Display total per passenger
     mov edx, OFFSET msgTotal
     call WriteString
     mov eax, totalPrice
     call WriteIntegerAsMoney
     call Crlf
 
-    ;call Crlf
-    ;mov edx, OFFSET nextSessionMessage
-    ;call WriteString
-    ;call waitEnter
+    ; Display passenger count (Pax) with proper alignment
+    mov edx, OFFSET msgPerPax   ; "Pax:             "
+    call WriteString
+    mov eax, pax
+    call WriteDec
+    call Crlf
+
+    ; Check if user is member (user2) and apply discount
+    cmp currentUser, 2
+    jne NoDiscount
+    
+    ; Calculate discount amount (15% of total)
+    mov eax, total
+    mov ebx, 15
+    mul ebx
+    mov ebx, 100
+    div ebx
+    mov discountAmount, eax
+    
+    ; Display discount with minus sign
+    mov edx, OFFSET msgDiscount
+    call WriteString
+    mov eax, discountAmount
+    call WriteIntegerAsMoney
+    call Crlf
+    
+    ; Subtract discount from total
+    mov eax, total
+    sub eax, discountAmount
+    mov total, eax
+
+NoDiscount:
+    ; Display long separator
+    mov edx, OFFSET msgSepLong
+    call WriteString
+    call Crlf
+    
+    ; Display grand total
+    mov edx, OFFSET msgGrandTotal
+    call WriteString
+    mov eax, total
+    call WriteIntegerAsMoney
+    call Crlf
+
     ret
 ComputeTotal ENDP
+
 
 ; ------------------------------------------------------------
 ; GUAN RONG - Passenger Information and Booking Summary Procedures
@@ -557,7 +615,7 @@ PassengerInputModule PROC
 ;
 ; Collects passenger information including names and passport numbers
 ;-----------------------------------------------------------
-    ;call clrscr
+    call clrscr
     ; Get number of passengers
 GetPaxCount:
     call Crlf
@@ -584,12 +642,13 @@ GetPassengerData:
     mov esi, 0
 
 PassengerLoop:
-    
     push ecx  ; Save loop counter
     
-    ; Get passenger name (offset = esi * NAME_SIZE)
+    ; Get passenger name
     mov edx, OFFSET promptName
     call WriteString
+    
+    ; Calculate offset for this passenger's name
     mov eax, esi
     mov ebx, NAME_SIZE
     mul ebx
@@ -598,9 +657,11 @@ PassengerLoop:
     mov ecx, NAME_SIZE
     call ReadString
 
-    ; Get passport number (offset = esi * PASSPORT_SIZE)
+    ; Get passport number
     mov edx, OFFSET promptPassport
     call WriteString
+    
+    ; Calculate offset for this passenger's passport
     mov eax, esi
     mov ebx, PASSPORT_SIZE
     mul ebx
@@ -610,18 +671,12 @@ PassengerLoop:
     call ReadString
     call Crlf
 
-    mov edx, OFFSET nextSessionMessage
-    call writeString
-    call waitEnter
-    ;call clrscr
-
     pop ecx   ; Restore loop counter
     inc esi
-
     loop PassengerLoop
 
     call SummaryModule
-    
+    ret
 PassengerInputModule ENDP
 
 ;-----------------------------------------------------------
@@ -702,7 +757,7 @@ SummaryModule PROC
     call clrscr
     mov edx, OFFSET summaryTitle
     call WriteString
-
+    call Crlf
 
     ; Display membership status message if member
     cmp currentUser, 1
@@ -723,21 +778,12 @@ CalculatePrice:
     mul ebx
     mov total, eax
 
-    ; Apply discount if member
-    cmp currentUser, 2
-
-    ;fld total
-    ;fld discount
-    ;fmul
-    ;fld total
-    ;fsub
-    ;fstp discountedTotal
-
-
     ; Display passenger details
 DisplayPassengers:
     mov edx, OFFSET passengerHeader
     call WriteString
+    call Crlf
+    
     mov ecx, pax
     mov esi, 0
 
@@ -747,6 +793,8 @@ DisplayLoop:
     ; Display name
     mov edx, OFFSET passengerLine
     call WriteString
+    
+    ; Calculate offset for this passenger's name
     mov eax, esi
     mov ebx, NAME_SIZE
     mul ebx
@@ -758,6 +806,8 @@ DisplayLoop:
     ; Display passport
     mov edx, OFFSET passportLine
     call WriteString
+    
+    ; Calculate offset for this passenger's passport
     mov eax, esi
     mov ebx, PASSPORT_SIZE
     mul ebx
@@ -771,37 +821,13 @@ DisplayLoop:
     inc esi
     loop DisplayLoop
 
-    ; Display separator
-    ;mov edx, OFFSET separatorLine
-    ;call WriteString
-
-    ; Display pricing information
-    ;mov edx, OFFSET priceLabel
-    ;call WriteString
-
-    ; Display appropriate total
-    cmp currentUser, 1
-    jne ShowRegularPrice
-
-    ; Show discounted price
-    ;fld discountedTotal
-    ;call WriteFloat2Decimal
-    ;call Crlf
-    jmp Done
-
-ShowRegularPrice:
-    mov eax, total
-    call WriteIntegerAsMoney
-    call Crlf
-
 Done:
     ; Display final separator
-    ;mov edx, OFFSET separatorLine
-    ;call WriteString
-    ;mov edx, OFFSET nextSessionMessage
-    ;call WriteString
-    ;call waitEnter
-    call computeTotal
+    mov edx, OFFSET separatorLine
+    call WriteString
+    call Crlf
+    
+    call ComputeTotal
     call payment
     ret
 
@@ -866,11 +892,6 @@ payment PROC
 ;
 ; Handles payment processing, change calculation, and booking confirmation
 ;-----------------------------------------------------------
-    ;call clrscr                        ; Clear the screen every time you show the payment screen
-    ;mov edx, OFFSET msgTotal
-    ;call WriteString                   ; Print "Total: "
-    ;mov eax, totalPrice
-    ;call WriteMoney                    ; Print as decimal (e.g., 3880.00)
     call Crlf                          ; New line
 
 mainLoop:
@@ -893,7 +914,7 @@ getPayment:
     call WriteString
     call ReadMoney
     mov eax, paymentAmount      ; paymentAmount = user input
-    mov ebx, totalPrice         ; totalPrice = amount due
+    mov ebx, total         ; totalPrice = amount due
     cmp eax, ebx
     jl not_enough_balance
     sub eax, ebx                ; change = paymentAmount - totalPrice
