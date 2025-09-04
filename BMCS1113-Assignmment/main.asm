@@ -10,21 +10,6 @@ INCLUDE Irvine32.inc
 ; ------------------------------------------------------------
 ; --- User State Variables ---
 currentUser          BYTE 0      ; Tracks the currently logged-in user (0 = none, 1 = user1, 2 = user2)
-currentPrice         WORD 0      ; Stores the price of the selected trip
-currentTripType      BYTE 0      ; Stores the type of trip (not used yet)
-currentReturnDate    BYTE 0      ; Stores the return date (not used yet)
-currentDepartureDate BYTE 0      ; Stores the departure date (not used yet)
-currentAirline       BYTE 0      ; Stores the selected airline (not used yet)
-currentDestination   BYTE 0      ; Stores the selected destination (not used yet)
-currentDeparture     BYTE 0      ; Stores the selected departure location (not used yet)
-
-; --- Menu Selections ---
-selection0 BYTE "0",0           ; Option to log out
-selection1 BYTE "1",0           ; Option 1
-selection2 BYTE "2",0           ; Option 2
-selection3 BYTE "3",0           ; Option 3
-selection4 BYTE "4",0           ; Option 4
-selection5 BYTE "5",0           ; Option 5
 
 ; --- User Credentials ---
 user1name   DB "12345",0        ; Username for user 1 (no membership)
@@ -93,21 +78,17 @@ totalPrice    DWORD ?
 MAX_PASSENGERS = 5
 NAME_SIZE = 50
 PASSPORT_SIZE = 20
-CUSTOMER_ID_SIZE = 10
 
 ; Module 5 Data
 promptPax      BYTE "Number of passengers [1-5]: ", 0
 promptName     BYTE "Passenger name: ", 0
 promptPassport BYTE "Passport number: ", 0
-promptCustomer BYTE "Customer ID (C12345 format): ", 0
 errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
 
 ; Passenger Data
 pax DWORD ?
-customerId BYTE CUSTOMER_ID_SIZE DUP(?)
 passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
 passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
-; isMember DWORD 0  ; 0 = not member, 1 = member
 
 ; For float formatting
 tempInt DWORD ?
@@ -127,7 +108,6 @@ passportLine BYTE "Passport: ",0
 separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
 ; Pricing
-discount REAL8 0.10
 total DWORD ?
 discountedTotal DWORD ?
 
@@ -159,7 +139,6 @@ bookingEntryMsg BYTE "Booking #",0
 flightMsg BYTE " | Flight: ",0
 priceMsg BYTE " | Total: RM",0
 paxMsg BYTE " | Passengers: ",0
-viewHistoryPrompt BYTE "View booking history? [1] Yes [2] No: ",0
 
 ; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Module
@@ -169,15 +148,13 @@ paymentMethod BYTE ? ; 1=Credit Card, 2=E-wallet
 bookAnother BYTE ?   ; 1=Yes, 0=No
 promptPayment BYTE "Select payment method: [1] Credit Card  [2] E-wallet | Your Choice: ",0
 promptSuccess BYTE "Payment successful. Flight booked!",0
-promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
+promptAnother BYTE "Book another flight? [1] Yes [2] No : ",0
 promptInvalid BYTE "Invalid input. Try again.",0
 promptPay BYTE "Pay Amount: RM",0
 promptChange BYTE "Your change is: RM",0
 promptNotEnough BYTE "Not enough balance. Please check again",0
 inputStr BYTE 32 DUP(0)
-totalBill DWORD 3500 ; Example total bill amount
 paymentAmount DWORD ?
-change DWORD ?
 paymentChange DWORD ?  ; Separate variable for payment change calculation
 
 ; ------------------------------------------------------------
@@ -554,7 +531,6 @@ AskInsurance:
     mov edx, OFFSET invalidMsg
     call WriteString
     call Crlf
-    ;call passengerInputModule
     jmp AskInsurance
 
 InsYes:
@@ -588,20 +564,20 @@ ComputeTotal PROC
     mov edx, OFFSET msgBase
     call WriteString
     mov eax, basePrice
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
 
     mov edx, OFFSET msgClass
     call WriteString
     mov eax, classPrice
     sub eax, basePrice        ; show adjustment compared to base
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
 
     mov edx, OFFSET msgIns
     call WriteString
     mov eax, insPrice
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
 
     mov edx, OFFSET msgSep
@@ -611,13 +587,9 @@ ComputeTotal PROC
     mov edx, OFFSET msgTotal
     call WriteString
     mov eax, totalPrice
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
 
-    ;call Crlf
-    ;mov edx, OFFSET nextSessionMessage
-    ;call WriteString
-    ;call waitEnter
     ret
 ComputeTotal ENDP
 
@@ -630,7 +602,6 @@ PassengerInputModule PROC
 ;
 ; Collects passenger information including names and passport numbers
 ;-----------------------------------------------------------
-    ;call clrscr
     ; Get number of passengers
 GetPaxCount:
     call Crlf
@@ -686,7 +657,6 @@ PassengerLoop:
     mov edx, OFFSET nextSessionMessage
     call writeString
     call waitEnter
-    ;call clrscr
 
     pop ecx   ; Restore loop counter
     inc esi
@@ -698,9 +668,9 @@ PassengerLoop:
 PassengerInputModule ENDP
 
 ;-----------------------------------------------------------
-WriteFloat2Decimal PROC
+WriteFloat2Decimal_Unused PROC
 ;
-; Writes a floating-point number with 2 decimal places
+; Writes a floating-point number with 2 decimal places (GUAN RONG's work - reserved)
 ;-----------------------------------------------------------
     LOCAL negativeFlag:BYTE
     
@@ -749,10 +719,10 @@ DisplayNumber:
 DisplayCents:
     call WriteDec
     ret
-WriteFloat2Decimal ENDP
+WriteFloat2Decimal_Unused ENDP
 
 ;-----------------------------------------------------------
-WriteIntegerAsMoney PROC
+WriteFloat2Decimal PROC
 ;
 ; Displays an integer as money format with .00
 ; Input: EAX = integer value to display
@@ -764,7 +734,7 @@ WriteIntegerAsMoney PROC
     call WriteChar
     call WriteChar
     ret
-WriteIntegerAsMoney ENDP
+WriteFloat2Decimal ENDP
 
 ;-----------------------------------------------------------
 SummaryModule PROC
@@ -798,17 +768,6 @@ CalculatePrice:
     mov ebx, pax
     mul ebx
     mov total, eax
-
-    ; Apply discount if member
-    cmp currentUser, 2
-
-    ;fld total
-    ;fld discount
-    ;fmul
-    ;fld total
-    ;fsub
-    ;fstp discountedTotal
-
 
     ; Display passenger details
 DisplayPassengers:
@@ -847,37 +806,23 @@ DisplayLoop:
     inc esi
     loop DisplayLoop
 
-    ; Display separator
-    ;mov edx, OFFSET separatorLine
-    ;call WriteString
-
-    ; Display pricing information
-    ;mov edx, OFFSET priceLabel
-    ;call WriteString
-
     ; Display appropriate total
     cmp currentUser, 2
     je ShowMemberPrice
 
     ; Show regular price for user 1
     mov eax, total
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
     jmp Done
 
 ShowMemberPrice:
     ; Show discounted price for user 2
     mov eax, total
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
 
 Done:
-    ; Display final separator
-    ;mov edx, OFFSET separatorLine
-    ;call WriteString
-    ;mov edx, OFFSET nextSessionMessage
-    ;call WriteString
-    ;call waitEnter
     call payment
     ret
 
@@ -933,7 +878,7 @@ WriteMoney PROC
 ; Prints a monetary value with .00 format
 ; Input: EAX = integer value to display
 ;-----------------------------------------------------------
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     ret
 WriteMoney ENDP
 
@@ -942,11 +887,6 @@ payment PROC
 ;
 ; Handles payment processing, change calculation, and booking confirmation
 ;-----------------------------------------------------------
-    ;call clrscr                        ; Clear the screen every time you show the payment screen
-    ;mov edx, OFFSET msgTotal
-    ;call WriteString                   ; Print "Total: "
-    ;mov eax, totalPrice
-    ;call WriteMoney                    ; Print as decimal (e.g., 3880.00)
     call Crlf                          ; New line
 
 mainLoop:
@@ -1106,7 +1046,7 @@ ContinueDisplay:
     mov edx, OFFSET priceMsg
     call WriteString
     mov eax, bookingTotalPrices[esi*4]
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     
     ; Display passenger count
     mov edx, OFFSET paxMsg
@@ -1313,7 +1253,7 @@ DisplayFormattedTicket PROC
     mov edx, OFFSET ticketTotalLabel
     call WriteString
     mov eax, total
-    call WriteIntegerAsMoney
+    call WriteFloat2Decimal
     call Crlf
     
     mov edx, OFFSET ticketPaymentLabel
