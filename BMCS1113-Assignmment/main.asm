@@ -59,7 +59,7 @@ menuLine6   DB "| [3] | CloudNine Airways    | Johor Bahru    | Hong Kong      |
 menuLine7   DB "| [4] | Eastern Horizon Air  | Kota Kinabalu  | Manila         | 2025-08-18     |  One-way  |     N/A    |  3300.00    |",0
 menuLine8   DB "| [5] | Jet2 Holiday         | Kuching        | Jakarta        | 2025-08-19     |  Two-way  | 2025-08-24 |  5400.00    |",0
 menuLine9   DB "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
-menuLine10  DB "Select [0] to log out.",0
+menuLine10  DB "Select [0] to log out. [6] View booking history.",0
 
 ; ------------------------------------------------------------
 ; YAN ZHE - Flight Selection and Price Calculation Module
@@ -68,7 +68,7 @@ menuLine10  DB "Select [0] to log out.",0
 flightPrices DWORD 525,2700,7500,3300,5400
 
 ; prompts and messages
-promptFlight  BYTE "Choose your option [0-5]: ",0
+promptFlight  BYTE "Choose your option [0-6]: ",0
 promptClass   BYTE "Choose class: [1] Economy [2] Business : ",0
 promptIns     BYTE "Add insurance? [1] Yes [2] No : ",0
 invalidMsg    BYTE "Invalid input! Please try again.",0
@@ -132,6 +132,36 @@ total DWORD ?
 discountedTotal DWORD ?
 
 ; ------------------------------------------------------------
+; Booking History Module
+; ------------------------------------------------------------
+; Constants for booking history
+MAX_BOOKINGS = 10
+BOOKING_SIZE = 200
+
+; Booking history data
+bookingCount DWORD 0
+bookingHistory BYTE MAX_BOOKINGS DUP(BOOKING_SIZE DUP(?))
+bookingFlightIDs DWORD MAX_BOOKINGS DUP(?)
+bookingTotalPrices DWORD MAX_BOOKINGS DUP(?)
+bookingPassengerCounts DWORD MAX_BOOKINGS DUP(?)
+
+; Airline names for history display
+airline1 BYTE "SkyJet Airlines",0
+airline2 BYTE "Oceanic Air",0
+airline3 BYTE "CloudNine Airways",0
+airline4 BYTE "Eastern Horizon Air",0
+airline5 BYTE "Jet2 Holiday",0
+
+; Booking history messages
+historyTitle BYTE "----- Your Booking History -----",0Dh,0Ah,0
+noBookingsMsg BYTE "No previous bookings found.",0Dh,0Ah,0
+bookingEntryMsg BYTE "Booking #",0
+flightMsg BYTE " | Flight: ",0
+priceMsg BYTE " | Total: RM",0
+paxMsg BYTE " | Passengers: ",0
+viewHistoryPrompt BYTE "View booking history? [1] Yes [2] No: ",0
+
+; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Module
 ; ------------------------------------------------------------
 ; Payment and booking variables
@@ -148,7 +178,44 @@ inputStr BYTE 32 DUP(0)
 totalBill DWORD 3500 ; Example total bill amount
 paymentAmount DWORD ?
 change DWORD ?
+paymentChange DWORD ?  ; Separate variable for payment change calculation
 
+; ------------------------------------------------------------
+; Ticket Printing Module
+; ------------------------------------------------------------
+; Ticket display messages
+ticketHeader1 BYTE "===============================================",0
+ticketHeader2 BYTE "           FLIGHT BOOKING TICKET              ",0
+ticketHeader3 BYTE "===============================================",0
+ticketBookingRef BYTE "Booking Reference: FB",0
+ticketDate BYTE "Booking Date: 2025-09-04",0
+ticketSeparator BYTE "-----------------------------------------------",0
+ticketFlightInfo BYTE "FLIGHT INFORMATION",0
+ticketAirlineLabel BYTE "Airline: ",0
+ticketRouteLabel BYTE "Route: ",0
+ticketDateLabel BYTE "Departure: ",0
+ticketClassLabel BYTE "Class: ",0
+ticketInsuranceLabel BYTE "Insurance: ",0
+ticketPaxInfo BYTE "PASSENGER INFORMATION",0
+ticketPaxCount BYTE "Number of Passengers: ",0
+ticketTotalLabel BYTE "TOTAL AMOUNT: RM",0
+ticketPaymentLabel BYTE "Payment Method: ",0
+ticketThankYou BYTE "Thank you for choosing our airline!",0
+ticketContact BYTE "For inquiries: +60-3-1234-5678",0
+printPrompt BYTE "Print ticket? [1] Yes [2] No: ",0
+
+; Class and insurance text
+economyText BYTE "Economy",0
+businessText BYTE "Business",0
+yesText BYTE "Yes",0
+noText BYTE "No",0
+creditCardText BYTE "Credit Card",0
+ewalletText BYTE "E-wallet",0
+
+; Flight route information arrays
+departureLocations BYTE "Kuala Lumpur",0,"Penang       ",0,"Johor Bahru  ",0,"Kota Kinabalu",0,"Kuching      ",0
+destinationLocations BYTE "Singapore ",0,"Bangkok   ",0,"Hong Kong ",0,"Manila    ",0,"Jakarta   ",0
+departureDates BYTE "2025-08-15",0,"2025-08-16",0,"2025-08-17",0,"2025-08-18",0,"2025-08-19",0
 
 
 ; ============================================================
@@ -360,12 +427,18 @@ GetFlight:
     call ReadInt           ; EAX = user's input
     cmp eax, 0
     je LogoutSelected      ; If user selects 0, go to logout
+    cmp eax, 6
+    je ViewHistory         ; If user selects 6, view booking history
     cmp eax, 1
     jl InvalidFlight
     cmp eax, 5
     jg InvalidFlight
     mov selectedID, eax
     jmp AfterFlight
+
+ViewHistory:
+    call DisplayBookingHistory
+    jmp selectTicket       ; Return to main menu after viewing history
 
 InvalidFlight:
     mov edx, OFFSET invalidMsg
@@ -717,6 +790,9 @@ RegularCustomer:
     call WriteString
 
 CalculatePrice:
+    ; First compute the totalPrice (classPrice + insPrice)
+    call computeTotal
+    
     ; Calculate base total (price * passengers)
     mov eax, totalPrice
     mov ebx, pax
@@ -780,16 +856,17 @@ DisplayLoop:
     ;call WriteString
 
     ; Display appropriate total
-    cmp currentUser, 1
-    jne ShowRegularPrice
+    cmp currentUser, 2
+    je ShowMemberPrice
 
-    ; Show discounted price
-    ;fld discountedTotal
-    ;call WriteFloat2Decimal
-    ;call Crlf
+    ; Show regular price for user 1
+    mov eax, total
+    call WriteIntegerAsMoney
+    call Crlf
     jmp Done
 
-ShowRegularPrice:
+ShowMemberPrice:
+    ; Show discounted price for user 2
     mov eax, total
     call WriteIntegerAsMoney
     call Crlf
@@ -801,7 +878,6 @@ Done:
     ;mov edx, OFFSET nextSessionMessage
     ;call WriteString
     ;call waitEnter
-    call computeTotal
     call payment
     ret
 
@@ -893,19 +969,26 @@ getPayment:
     call WriteString
     call ReadMoney
     mov eax, paymentAmount      ; paymentAmount = user input
-    mov ebx, totalPrice         ; totalPrice = amount due
+    mov ebx, total              ; total = amount due (totalPrice * passengers)
     cmp eax, ebx
     jl not_enough_balance
-    sub eax, ebx                ; change = paymentAmount - totalPrice
-    mov change, eax
+    sub eax, ebx                ; paymentChange = paymentAmount - total
+    mov paymentChange, eax
     mov edx, OFFSET promptChange
     call WriteString
-    mov eax, change
+    mov eax, paymentChange
     call WriteMoney
     call Crlf
     mov edx, OFFSET promptSuccess
     call WriteString
     call Crlf
+    
+    ; Save this booking to history
+    call SaveBooking
+    
+    ; Ask if user wants to print ticket
+    call PrintTicket
+    
     jmp askAnother
 
 not_enough_balance:
@@ -915,6 +998,7 @@ not_enough_balance:
     jmp getPayment
 
 askAnother:
+    call crlf
     mov edx, OFFSET promptAnother
     call WriteString
     call ReadInt
@@ -940,5 +1024,465 @@ exitApp:
     exit                      
 
 payment ENDP
+
+; ------------------------------------------------------------
+; Booking History Procedures
+; ------------------------------------------------------------
+
+;-----------------------------------------------------------
+SaveBooking PROC
+;
+; Saves current booking to history
+;-----------------------------------------------------------
+    ; Check if we have space for more bookings
+    mov eax, bookingCount
+    cmp eax, MAX_BOOKINGS
+    jge BookingFull
+    
+    ; Save flight ID
+    mov ebx, bookingCount
+    mov eax, selectedID
+    mov bookingFlightIDs[ebx*4], eax
+    
+    ; Save total price
+    mov eax, total
+    mov bookingTotalPrices[ebx*4], eax
+    
+    ; Save passenger count
+    mov eax, pax
+    mov bookingPassengerCounts[ebx*4], eax
+    
+    ; Increment booking count
+    inc bookingCount
+    
+BookingFull:
+    ret
+SaveBooking ENDP
+
+;-----------------------------------------------------------
+DisplayBookingHistory PROC
+;
+; Displays all previous bookings for the current user
+;-----------------------------------------------------------
+    call Crlf
+    mov edx, OFFSET historyTitle
+    call WriteString
+    
+    ; Check if any bookings exist
+    mov eax, bookingCount
+    cmp eax, 0
+    je NoBookings
+    
+    ; Display each booking
+    mov ecx, bookingCount
+    mov esi, 0
+    
+DisplayBookingLoop:
+    push ecx
+    
+    ; Display booking number
+    mov edx, OFFSET bookingEntryMsg
+    call WriteString
+    mov eax, esi
+    inc eax
+    call WriteDec
+    
+    ; Display flight ID and airline name
+    mov edx, OFFSET flightMsg
+    call WriteString
+    mov eax, bookingFlightIDs[esi*4]
+    call WriteDec
+    mov al, ' '
+    call WriteChar
+    call WriteChar
+    
+    ; Display airline name based on flight ID
+    mov eax, bookingFlightIDs[esi*4]
+    call DisplayAirlineName
+    
+ContinueDisplay:
+    
+    ; Display total price
+    mov edx, OFFSET priceMsg
+    call WriteString
+    mov eax, bookingTotalPrices[esi*4]
+    call WriteIntegerAsMoney
+    
+    ; Display passenger count
+    mov edx, OFFSET paxMsg
+    call WriteString
+    mov eax, bookingPassengerCounts[esi*4]
+    call WriteDec
+    call Crlf
+    call Crlf
+    
+    inc esi
+    pop ecx
+    loop DisplayBookingLoop
+    
+    jmp HistoryEnd
+    
+NoBookings:
+    mov edx, OFFSET noBookingsMsg
+    call WriteString
+    
+HistoryEnd:
+    mov edx, OFFSET nextSessionMessage
+    call WriteString
+    call waitEnter
+    ret
+DisplayBookingHistory ENDP
+
+;-----------------------------------------------------------
+DisplayAirlineName PROC
+;
+; Displays airline name based on flight ID in EAX
+;-----------------------------------------------------------
+    cmp eax, 1
+    je ShowAirline1
+    cmp eax, 2
+    je ShowAirline2
+    cmp eax, 3
+    je ShowAirline3
+    cmp eax, 4
+    je ShowAirline4
+    jmp ShowAirline5
+    
+ShowAirline1:
+    mov edx, OFFSET airline1
+    call WriteString
+    ret
+ShowAirline2:
+    mov edx, OFFSET airline2
+    call WriteString
+    ret
+ShowAirline3:
+    mov edx, OFFSET airline3
+    call WriteString
+    ret
+ShowAirline4:
+    mov edx, OFFSET airline4
+    call WriteString
+    ret
+ShowAirline5:
+    mov edx, OFFSET airline5
+    call WriteString
+    ret
+DisplayAirlineName ENDP
+
+; ------------------------------------------------------------
+; Ticket Printing Procedures
+; ------------------------------------------------------------
+
+;-----------------------------------------------------------
+PrintTicket PROC
+;
+; Asks user if they want to print ticket and displays formatted ticket
+;-----------------------------------------------------------
+    call Crlf
+    mov edx, OFFSET printPrompt
+    call WriteString
+    call ReadInt
+    
+    cmp eax, 1
+    je DisplayTicket
+    cmp eax, 2
+    je SkipPrint
+    
+    ; Invalid input
+    mov edx, OFFSET promptInvalid
+    call WriteString
+    call Crlf
+    jmp PrintTicket
+    
+DisplayTicket:
+    call Crlf
+    call DisplayFormattedTicket
+    jmp TicketEnd
+    
+SkipPrint:
+    ; Do nothing, just continue
+    
+TicketEnd:
+    ret
+PrintTicket ENDP
+
+;-----------------------------------------------------------
+DisplayFormattedTicket PROC
+;
+; Displays a formatted airline ticket with all booking details
+;-----------------------------------------------------------
+    ; Display ticket header
+    call clrscr
+    mov edx, OFFSET ticketHeader1
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketHeader2
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketHeader3
+    call WriteString
+    call Crlf
+    call Crlf
+    
+    ; Display booking reference (using booking count as reference number)
+    mov edx, OFFSET ticketBookingRef
+    call WriteString
+    mov eax, bookingCount
+    call WriteDec
+    call Crlf
+    
+    ; Display booking date
+    mov edx, OFFSET ticketDate
+    call WriteString
+    call Crlf
+    call Crlf
+    
+    ; Display separator
+    mov edx, OFFSET ticketSeparator
+    call WriteString
+    call Crlf
+    
+    ; Flight information section
+    mov edx, OFFSET ticketFlightInfo
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketSeparator
+    call WriteString
+    call Crlf
+    
+    ; Display airline name
+    mov edx, OFFSET ticketAirlineLabel
+    call WriteString
+    mov eax, selectedID
+    call DisplayAirlineName
+    call Crlf
+    
+    ; Display route information
+    mov edx, OFFSET ticketRouteLabel
+    call WriteString
+    call DisplayRouteInfo
+    call Crlf
+    
+    ; Display departure date
+    mov edx, OFFSET ticketDateLabel
+    call WriteString
+    call DisplayDepartureDate
+    call Crlf
+    
+    ; Display class
+    mov edx, OFFSET ticketClassLabel
+    call WriteString
+    call DisplayClassInfo
+    call Crlf
+    
+    ; Display insurance
+    mov edx, OFFSET ticketInsuranceLabel
+    call WriteString
+    call DisplayInsuranceInfo
+    call Crlf
+    call Crlf
+    
+    ; Passenger information section
+    mov edx, OFFSET ticketSeparator
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketPaxInfo
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketSeparator
+    call WriteString
+    call Crlf
+    
+    ; Display passenger count
+    mov edx, OFFSET ticketPaxCount
+    call WriteString
+    mov eax, pax
+    call WriteDec
+    call Crlf
+    call Crlf
+    
+    ; Display all passenger names
+    call DisplayTicketPassengers
+    call Crlf
+    
+    ; Payment information
+    mov edx, OFFSET ticketSeparator
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketTotalLabel
+    call WriteString
+    mov eax, total
+    call WriteIntegerAsMoney
+    call Crlf
+    
+    mov edx, OFFSET ticketPaymentLabel
+    call WriteString
+    call DisplayPaymentMethod
+    call Crlf
+    call Crlf
+    
+    ; Footer
+    mov edx, OFFSET ticketHeader1
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketThankYou
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketContact
+    call WriteString
+    call Crlf
+    mov edx, OFFSET ticketHeader1
+    call WriteString
+    call Crlf
+    call Crlf
+    
+    ret
+DisplayFormattedTicket ENDP
+
+;-----------------------------------------------------------
+DisplayRouteInfo PROC
+;
+; Displays departure and destination based on selected flight
+;-----------------------------------------------------------
+    ; Display departure location
+    mov eax, selectedID
+    dec eax                     ; Convert to 0-based index
+    mov ebx, 13                 ; Each location string is 13 chars
+    mul ebx
+    mov edx, OFFSET departureLocations
+    add edx, eax
+    call WriteString
+    
+    mov al, ' '
+    call WriteChar
+    mov al, '-'
+    call WriteChar
+    mov al, '>'
+    call WriteChar
+    mov al, ' '
+    call WriteChar
+    
+    ; Display destination location
+    mov eax, selectedID
+    dec eax                     ; Convert to 0-based index
+    mov ebx, 10                 ; Each destination string is 10 chars
+    mul ebx
+    mov edx, OFFSET destinationLocations
+    add edx, eax
+    call WriteString
+    
+    ret
+DisplayRouteInfo ENDP
+
+;-----------------------------------------------------------
+DisplayDepartureDate PROC
+;
+; Displays departure date based on selected flight
+;-----------------------------------------------------------
+    mov eax, selectedID
+    dec eax                     ; Convert to 0-based index
+    mov ebx, 11                 ; Each date string is 11 chars (10 + null)
+    mul ebx
+    mov edx, OFFSET departureDates
+    add edx, eax
+    call WriteString
+    ret
+DisplayDepartureDate ENDP
+
+;-----------------------------------------------------------
+DisplayClassInfo PROC
+;
+; Displays class information (Economy or Business)
+;-----------------------------------------------------------
+    mov eax, classPrice
+    mov ebx, basePrice
+    cmp eax, ebx
+    je ShowEconomy
+    
+    ; Business class
+    mov edx, OFFSET businessText
+    call WriteString
+    ret
+    
+ShowEconomy:
+    mov edx, OFFSET economyText
+    call WriteString
+    ret
+DisplayClassInfo ENDP
+
+;-----------------------------------------------------------
+DisplayInsuranceInfo PROC
+;
+; Displays insurance information (Yes or No)
+;-----------------------------------------------------------
+    cmp insPrice, 0
+    je ShowNoInsurance
+    
+    ; Has insurance
+    mov edx, OFFSET yesText
+    call WriteString
+    ret
+    
+ShowNoInsurance:
+    mov edx, OFFSET noText
+    call WriteString
+    ret
+DisplayInsuranceInfo ENDP
+
+;-----------------------------------------------------------
+DisplayPaymentMethod PROC
+;
+; Displays payment method used
+;-----------------------------------------------------------
+    cmp paymentMethod, 1
+    je ShowCreditCard
+    
+    ; E-wallet
+    mov edx, OFFSET ewalletText
+    call WriteString
+    ret
+    
+ShowCreditCard:
+    mov edx, OFFSET creditCardText
+    call WriteString
+    ret
+DisplayPaymentMethod ENDP
+
+;-----------------------------------------------------------
+DisplayTicketPassengers PROC
+;
+; Displays all passenger names on the ticket
+;-----------------------------------------------------------
+    mov ecx, pax
+    mov esi, 0
+    
+TicketPaxLoop:
+    push ecx
+    
+    ; Display passenger number
+    mov eax, esi
+    inc eax
+    call WriteDec
+    mov al, '.'
+    call WriteChar
+    mov al, ' '
+    call WriteChar
+    
+    ; Display passenger name
+    mov eax, esi
+    mov ebx, NAME_SIZE
+    mul ebx
+    mov edx, OFFSET passengerNames
+    add edx, eax
+    call WriteString
+    call Crlf
+    
+    pop ecx
+    inc esi
+    loop TicketPaxLoop
+    
+    ret
+DisplayTicketPassengers ENDP
 
 END main
