@@ -582,7 +582,9 @@ selectTicketEnd:
 
 selectTicket ENDP
 
-; seperate computeTotal out from selectTicket
+; ------------------------------------------------------------
+; Compute Total Procedure
+; ------------------------------------------------------------
 ComputeTotal PROC
     ; ------------ compute total price ------------
     mov eax, classPrice
@@ -871,6 +873,7 @@ SummaryModule ENDP
 
 ; ADAM PART
 ReadMoney PROC
+
     mov edx, OFFSET inputStr
     mov ecx, LENGTHOF inputStr
     call ReadString
@@ -889,88 +892,50 @@ parse_int:
     cmp bl, '9'
     ja invalid_input
     sub bl, '0'
-    movzx ebx, bl      ; Zero extend bl to ebx
-    push ebx           ; Save digit
+    movzx ebx, bl
+    push ebx
     mov ebx, 10
-    mul ebx            ; eax *= 10
-    pop ebx            ; Restore digit
-    add eax, ebx      ; Add digit to result
+    mul ebx
+    pop ebx
+    add eax, ebx
     inc esi
     jmp parse_int
 int_done:
-    imul eax, eax, 100 ; integer part * 100
-    mov ebx, eax
-
-    ; Parse decimal part (if any)
-    mov bl, [esi]
-    cmp bl, '.'
-    jne no_decimal
-    inc esi
-    mov bl, [esi]
-    cmp bl, 0
-    je no_decimal
-    cmp bl, '0'
-    jb invalid_input
-    cmp bl, '9'
-    ja invalid_input
-    sub bl, '0'
-    movzx ecx, bl      ; Use ecx for decimal calculations
-    imul ecx, 10       ; First digit * 10
-    inc esi
-    mov bl, [esi]
-    cmp bl, 0
-    je dec_done
-    cmp bl, '0'
-    jb invalid_input
-    cmp bl, '9'
-    ja invalid_input
-    sub bl, '0'
-    movzx edx, bl      ; Use edx for second digit
-    add ecx, edx       ; Add second digit
-    inc esi
-    mov bl, [esi]
-    cmp bl, 0
-    jne invalid_input
-dec_done:
-    add ebx, ecx       ; Add decimal part to result
-    mov totalPrice, ebx
-    ret
-no_decimal:
-    mov totalPrice, ebx
+    ; No need to multiply by 100 if you only want integer ringgit
+    mov paymentAmount, eax
     ret
 invalid_input:
-    mov totalPrice, 0
+    mov paymentAmount, 0
     ret
 ReadMoney ENDP
 
 ; Prints a value in cents as a decimal (e.g., 1250 -> 12.50)
 WriteMoney PROC
-    push edx
     push eax
-    mov edx, 0
-    mov ebx, 100
-    div ebx
-    push edx
-    call WriteInt
+    call WriteDec         ; Print the integer part (e.g., 3780)
     mov edx, OFFSET dotStr
-    call WriteString
-    pop eax
-    cmp eax, 10
-    jge write_cents
+    call WriteString      ; Print "."
     mov al, '0'
-    call WriteChar
-write_cents:
-    call WriteInt
+    call WriteChar        ; Print "0"
+    call WriteChar        ; Print "0" again for ".00"
     pop eax
-    pop edx
     ret
 WriteMoney ENDP
 
 payment PROC
-call clrscr
+    call clrscr                        ; Clear the screen every time you show the payment screen
+    mov edx, OFFSET msgTotal
+    call WriteString                   ; Print "Total: "
+    mov eax, totalPrice
+    call WriteMoney                    ; Print as decimal (e.g., 3880.00)
+    call Crlf                          ; New line
+
+
+
 mainLoop:
+
     mov edx, OFFSET promptPayment
-    call WriteString
+    call WriteString                   ; Print payment method prompt
     call ReadInt
     mov paymentMethod, al
     cmp al, 1
@@ -982,19 +947,16 @@ mainLoop:
     call Crlf
     jmp mainLoop
 
-    ; TODO: REMOVE PAYMENTAMOUNT VARIABLE AND USE ACTUAL PAYMENT LOGIC
 payment_ok:
 getPayment:
     mov edx, OFFSET promptPay
     call WriteString
     call ReadMoney
-    mov eax, totalPrice        ; totalPrice now holds the payment amount (from ReadMoney)
-    mov paymentAmount, eax     ; store payment amount
-    mov eax, paymentAmount
-    mov ebx, totalPrice        ; totalPrice should be the amount due
+    mov eax, paymentAmount      ; paymentAmount = user input
+    mov ebx, totalPrice         ; totalPrice = amount due
     cmp eax, ebx
     jl not_enough_balance
-    sub eax, ebx               ; change = paymentAmount - totalPrice
+    sub eax, ebx                ; change = paymentAmount - totalPrice
     mov change, eax
     mov edx, OFFSET promptChange
     call WriteString
@@ -1034,7 +996,8 @@ exitApp:
     call crlf
     mov edx, OFFSET byeMessage
     call WriteString
-    int 21h
+    ret
+    ;int 21h
 
 payment ENDP
 

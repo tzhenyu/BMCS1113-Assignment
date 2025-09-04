@@ -582,7 +582,9 @@ selectTicketEnd:
 
 selectTicket ENDP
 
-; seperate computeTotal out from selectTicket
+; ------------------------------------------------------------
+; Compute Total Procedure
+; ------------------------------------------------------------
 ComputeTotal PROC
     ; ------------ compute total price ------------
     mov eax, classPrice
@@ -871,6 +873,10 @@ SummaryModule ENDP
 
 ; ADAM PART
 ReadMoney PROC
+
+
+
+
     mov edx, OFFSET inputStr
     mov ecx, LENGTHOF inputStr
     call ReadString
@@ -967,10 +973,20 @@ write_cents:
 WriteMoney ENDP
 
 payment PROC
-call clrscr
+
+    mov edx, OFFSET msgTotal
+    call WriteString                   ; Print "Total: "
+    mov eax, totalPrice
+    call WriteMoney                    ; Print as decimal (e.g., 3880.00)
+    call Crlf                          ; New line
+
+
+
 mainLoop:
+    ;call clrscr                        ; Clear the screen every time you show the payment screen
+
     mov edx, OFFSET promptPayment
-    call WriteString
+    call WriteString                   ; Print payment method prompt
     call ReadInt
     mov paymentMethod, al
     cmp al, 1
@@ -982,7 +998,6 @@ mainLoop:
     call Crlf
     jmp mainLoop
 
-    ; TODO: REMOVE PAYMENTAMOUNT VARIABLE AND USE ACTUAL PAYMENT LOGIC
 payment_ok:
 getPayment:
     mov edx, OFFSET promptPay
