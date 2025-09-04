@@ -53,11 +53,11 @@ userInput DB 50 DUP(0)          ; Buffer for user input (up to 49 chars + null t
 menuLine1   DB "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
 menuLine2   DB "| ID  | Airline              | Departure      | Destination    | Departure Date | Trip Type | Return Date| Price (MYR) |",0
 menuLine3   DB "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
-menuLine4   DB "| [1] | SkyJet Airlines      | Kuala Lumpur   | Singapore      | 2025-08-15     |  One-way  |     N/A    |     525     |",0
-menuLine5   DB "| [2] | Oceanic Air          | Penang         | Bangkok        | 2025-08-16     |  Two-way  | 2025-08-21 |     2700    |",0
-menuLine6   DB "| [3] | CloudNine Airways    | Johor Bahru    | Hong Kong      | 2025-08-17     |  Two-way  | 2025-08-22 |     7500    |",0
-menuLine7   DB "| [4] | Eastern Horizon Air  | Kota Kinabalu  | Manila         | 2025-08-18     |  One-way  |     N/A    |     3300    |",0
-menuLine8   DB "| [5] | Jet2 Holiday         | Kuching        | Jakarta        | 2025-08-19     |  Two-way  | 2025-08-24 |     5400    |",0
+menuLine4   DB "| [1] | SkyJet Airlines      | Kuala Lumpur   | Singapore      | 2025-08-15     |  One-way  |     N/A    |   525.00    |",0
+menuLine5   DB "| [2] | Oceanic Air          | Penang         | Bangkok        | 2025-08-16     |  Two-way  | 2025-08-21 |  2700.00    |",0
+menuLine6   DB "| [3] | CloudNine Airways    | Johor Bahru    | Hong Kong      | 2025-08-17     |  Two-way  | 2025-08-22 |  7500.00    |",0
+menuLine7   DB "| [4] | Eastern Horizon Air  | Kota Kinabalu  | Manila         | 2025-08-18     |  One-way  |     N/A    |  3300.00    |",0
+menuLine8   DB "| [5] | Jet2 Holiday         | Kuching        | Jakarta        | 2025-08-19     |  Two-way  | 2025-08-24 |  5400.00    |",0
 menuLine9   DB "+-----+----------------------+----------------+----------------+----------------+-----------+------------+-------------+",0
 menuLine10  DB "Select [0] to log out.",0
 
@@ -65,7 +65,7 @@ menuLine10  DB "Select [0] to log out.",0
 ; YAN ZHE - Flight Selection and Price Calculation Module
 ; ------------------------------------------------------------
 ; prices used for calculations (must match the table above)
-flightPrices DWORD 525,2700,7500,3300,5400
+flightPrices REAL4 525.0,2700.0,7500.0,3300.0,5400.0
 
 ; prompts and messages
 promptFlight  BYTE "Choose your option [0-5]: ",0
@@ -81,10 +81,10 @@ msgTotal      BYTE "     Total: RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
-basePrice     DWORD ?
-classPrice    DWORD ?
-insPrice      DWORD ?
-totalPrice    DWORD ?
+basePrice     REAL4 ?
+classPrice    REAL4 ?
+insPrice      REAL4 ?
+totalPrice    REAL4 ?
 
 ; ------------------------------------------------------------
 ; GUAN RONG - Passenger Information and Booking Summary Module
@@ -112,6 +112,8 @@ passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
 ; For float formatting
 tempInt DWORD ?
 hundred REAL8 100.0
+insurancePrice REAL4 100.0
+businessMultiplier REAL4 1.4
 
 ; Module 6 Data
 summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
@@ -141,12 +143,12 @@ promptSuccess BYTE "Payment successful. Flight booked!",0
 promptAnother BYTE "Book another flight? 1=Yes 2=No : ",0
 promptInvalid BYTE "Invalid input. Try again.",0
 promptPay BYTE "Pay Amount: RM",0
-promptChange BYTE "Your change is: ",0
+promptChange BYTE "Your change is: RM",0
 promptNotEnough BYTE "Not enough balance. Please check again",0
 inputStr BYTE 32 DUP(0)
-totalBill DWORD 350000 ; Example total bill amount (RM 3500.00, in cents)
-paymentAmount DWORD ?
-change DWORD ?
+totalBill REAL4 3500.0 ; Example total bill amount
+paymentAmount REAL4 ?
+change REAL4 ?
 dotStr BYTE ".",0
 
 
@@ -437,8 +439,8 @@ ShowRowEnd:
     mov eax, selectedID
     dec eax                  ; make 0-based index
     lea esi, flightPrices
-    mov eax, [esi + eax*4]   ; load price
-    mov basePrice, eax
+    fld REAL4 PTR [esi + eax*4]   ; load price as float
+    fstp basePrice
 
     ; ------------ ask for class ------------
 GetClass:
@@ -455,18 +457,15 @@ GetClass:
     jmp GetClass
 
 ClassEconomy:
-    mov eax, basePrice
-    mov classPrice, eax
+    fld basePrice
+    fstp classPrice
     jmp AskInsurance
 
 ClassBusiness:
-    ; classPrice = basePrice * 1.4  ->  = (base * 14) / 10
-    mov eax, basePrice
-    mov ebx, 14
-    mul ebx                 ; EDX:EAX = base * 14
-    mov ebx, 10
-    div ebx                 ; EAX = (base*14)/10
-    mov classPrice, eax
+    ; classPrice = basePrice * 1.4
+    fld basePrice
+    fmul businessMultiplier
+    fstp classPrice
     jmp AskInsurance
 
 AskInsurance:
@@ -484,12 +483,14 @@ AskInsurance:
     jmp AskInsurance
 
 InsYes:
-    mov insPrice, 100
+    fld insurancePrice
+    fstp insPrice
     call PassengerInputModule
     jmp selectTicketEnd
 
 InsNo:
-    mov insPrice, 0
+    fldz                    ; load 0.0
+    fstp insPrice
     call PassengerInputModule
     jmp selectTicketEnd
 
@@ -505,29 +506,29 @@ ComputeTotal PROC
 ;-----------------------------------------------------------
 
 ; ------------ compute total price ------------
-    mov eax, classPrice
-    add eax, insPrice
-    mov totalPrice, eax
+    fld classPrice
+    fadd insPrice
+    fstp totalPrice
 
 ; ----------- display breakdown -----------
     call Crlf
     mov edx, OFFSET msgBase
     call WriteString
-    mov eax, basePrice
-    call WriteDec
+    fld basePrice
+    call WriteFloat2Decimal
     call Crlf
 
     mov edx, OFFSET msgClass
     call WriteString
-    mov eax, classPrice
-    sub eax, basePrice        ; show adjustment compared to base
-    call WriteDec
+    fld classPrice
+    fsub basePrice        ; show adjustment compared to base
+    call WriteFloat2Decimal
     call Crlf
 
     mov edx, OFFSET msgIns
     call WriteString
-    mov eax, insPrice
-    call WriteDec
+    fld insPrice
+    call WriteFloat2Decimal
     call Crlf
 
     mov edx, OFFSET msgSep
@@ -536,8 +537,8 @@ ComputeTotal PROC
 
     mov edx, OFFSET msgTotal
     call WriteString
-    mov eax, totalPrice
-    call WriteDec
+    fld totalPrice
+    call WriteFloat2Decimal
     call Crlf
 
     ;call Crlf
@@ -703,7 +704,7 @@ RegularCustomer:
 CalculatePrice:
     ; Calculate base total (price * passengers)
     fild pax
-    fld basePrice
+    fld totalPrice
     fmul
     fstp total
 
@@ -798,7 +799,7 @@ SummaryModule ENDP
 ;-----------------------------------------------------------
 ReadMoney PROC
 ;
-; Reads monetary input from user and converts to integer value
+; Reads monetary input from user and converts to REAL4 value
 ;-----------------------------------------------------------
 
     mov edx, OFFSET inputStr
@@ -828,27 +829,25 @@ parse_int:
     inc esi
     jmp parse_int
 int_done:
-    ; No need to multiply by 100 if you only want integer ringgit
-    mov paymentAmount, eax
+    ; Convert integer to REAL4
+    push eax
+    fild DWORD PTR [esp]
+    fstp paymentAmount
+    pop eax
     ret
 invalid_input:
-    mov paymentAmount, 0
+    fldz
+    fstp paymentAmount
     ret
 ReadMoney ENDP
 
 ;-----------------------------------------------------------
 WriteMoney PROC
 ;
-; Prints a monetary value in decimal format (e.g., 1250 -> 12.50)
+; Prints a monetary value with 2 decimal places using WriteFloat2Decimal
+; Input: ST(0) should contain the REAL4 value to display
 ;-----------------------------------------------------------
-    push eax
-    call WriteDec         ; Print the integer part (e.g., 3780)
-    mov edx, OFFSET dotStr
-    call WriteString      ; Print "."
-    mov al, '0'
-    call WriteChar        ; Print "0"
-    call WriteChar        ; Print "0" again for ".00"
-    pop eax
+    call WriteFloat2Decimal
     ret
 WriteMoney ENDP
 
@@ -883,15 +882,21 @@ getPayment:
     mov edx, OFFSET promptPay
     call WriteString
     call ReadMoney
-    mov eax, paymentAmount      ; paymentAmount = user input
-    mov ebx, totalPrice         ; totalPrice = amount due
-    cmp eax, ebx
-    jl not_enough_balance
-    sub eax, ebx                ; change = paymentAmount - totalPrice
-    mov change, eax
+    fld paymentAmount      ; paymentAmount = user input
+    fld totalPrice         ; totalPrice = amount due
+    fcompp                 ; compare paymentAmount with totalPrice
+    fstsw ax
+    sahf
+    jb not_enough_balance  ; if paymentAmount < totalPrice
+    
+    ; Calculate change = paymentAmount - totalPrice
+    fld paymentAmount
+    fsub totalPrice
+    fstp change
+    
     mov edx, OFFSET promptChange
     call WriteString
-    mov eax, change
+    fld change
     call WriteMoney
     call Crlf
     mov edx, OFFSET promptSuccess
