@@ -124,15 +124,14 @@ discountAmount DWORD ?
 ; Booking History Module
 ; ------------------------------------------------------------
 ; Constants for booking history
-MAX_BOOKINGS = 10
 BOOKING_SIZE = 200
 
 ; Booking history data
 bookingCount DWORD 0
-bookingHistory BYTE MAX_BOOKINGS DUP(BOOKING_SIZE DUP(?))
-bookingFlightIDs DWORD MAX_BOOKINGS DUP(?)
-bookingTotalPrices DWORD MAX_BOOKINGS DUP(?)
-bookingPassengerCounts DWORD MAX_BOOKINGS DUP(?)
+bookingHistory BYTE 10 DUP(BOOKING_SIZE DUP(?))
+bookingFlightIDs DWORD 10 DUP(?)
+bookingTotalPrices DWORD 10 DUP(?)
+bookingPassengerCounts DWORD 10 DUP(?)
 
 ; Airline names for history display
 airline1 BYTE "SkyJet Airlines",0
@@ -745,60 +744,6 @@ GetPassport:
 PassengerInputModule ENDP
 
 ;-----------------------------------------------------------
-WriteFloat2Decimal_Unused PROC
-;
-; Writes a floating-point number with 2 decimal places (GUAN RONG's work - reserved)
-;-----------------------------------------------------------
-    LOCAL negativeFlag:BYTE
-    
-    mov negativeFlag, 0
-    
-    ; Check if negative
-    fld ST(0)
-    ftst
-    fstsw ax
-    sahf
-    jnb PositiveNumber
-    mov negativeFlag, 1
-    fchs  ; Make positive
-    
-PositiveNumber:
-    ; Multiply by 100, round to integer
-    fmul hundred
-    frndint
-    fistp tempInt
-    
-    ; Display negative sign if needed
-    cmp negativeFlag, 0
-    je DisplayNumber
-    mov al, '-'
-    call WriteChar
-    
-DisplayNumber:
-    ; Display integer part (dollars)
-    mov eax, tempInt
-    mov edx, 0
-    mov ebx, 100
-    div ebx
-    call WriteDec
-    
-    ; Display decimal point
-    mov al, '.'
-    call WriteChar
-    
-    ; Display cents (2 decimal places)
-    mov eax, edx  ; remainder contains cents
-    cmp eax, 10
-    jge DisplayCents
-    mov al, '0'   ; add leading zero if needed
-    call WriteChar
-    
-DisplayCents:
-    call WriteDec
-    ret
-WriteFloat2Decimal_Unused ENDP
-
-;-----------------------------------------------------------
 WriteFloat2Decimal PROC
 ;
 ; Displays an integer as money format with .00
@@ -1154,11 +1099,6 @@ SaveBooking PROC
 ;
 ; Saves current booking to history
 ;-----------------------------------------------------------
-    ; Check if we have space for more bookings
-    mov eax, bookingCount
-    cmp eax, MAX_BOOKINGS
-    jge BookingFull
-    
     ; Save flight ID
     mov ebx, bookingCount
     mov eax, selectedID
@@ -1175,8 +1115,6 @@ SaveBooking PROC
     ; Increment booking count
     inc bookingCount
     
-BookingFull:
-    ret
 SaveBooking ENDP
 
 ;-----------------------------------------------------------
@@ -1307,7 +1245,7 @@ PrintTicket PROC
     cmp eax, 1
     je DisplayTicket
     cmp eax, 2
-    je SkipPrint
+    je TicketEnd
     
     ; Invalid input
     mov edx, OFFSET promptInvalid
@@ -1319,10 +1257,7 @@ DisplayTicket:
     call Crlf
     call DisplayFormattedTicket
     jmp TicketEnd
-    
-SkipPrint:
-    ; Do nothing, just continue
-    
+
 TicketEnd:
     ret
 PrintTicket ENDP
