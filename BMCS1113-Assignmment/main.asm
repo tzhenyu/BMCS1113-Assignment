@@ -1061,7 +1061,6 @@ not_enough_balance:
     call WriteString
     call Crlf
     jmp getPayment
-
 askAnother:
     call crlf
     mov edx, OFFSET promptAnother
@@ -1079,14 +1078,14 @@ askAnother:
 
 go_menu:
     call selectTicket
-    jmp payment
+    ret
 
 exitApp:
     call crlf
     mov edx, OFFSET byeMessage
     call WriteString
     call crlf
-    exit                      
+    exit         
 
 payment ENDP
 
@@ -1115,6 +1114,7 @@ SaveBooking PROC
     ; Increment booking count
     inc bookingCount
     
+    ret
 SaveBooking ENDP
 
 ;-----------------------------------------------------------
@@ -1400,7 +1400,7 @@ DisplayRouteInfo PROC
 ;
 ; Displays departure and destination based on selected flight
 ;-----------------------------------------------------------
-    ; Display departure location
+; Display departure location
     mov eax, selectedID
     dec eax                     ; Convert to 0-based index
     mov ebx, 13                 ; Each location string is 13 chars
@@ -1408,7 +1408,7 @@ DisplayRouteInfo PROC
     mov edx, OFFSET departureLocations
     add edx, eax
     call WriteString
-    
+
     mov al, ' '
     call WriteChar
     mov al, '-'
@@ -1417,16 +1417,16 @@ DisplayRouteInfo PROC
     call WriteChar
     mov al, ' '
     call WriteChar
-    
+
     ; Display destination location
     mov eax, selectedID
     dec eax                     ; Convert to 0-based index
-    mov ebx, 10                 ; Each destination string is 10 chars
+    mov ebx, 11                 ; Each destination string is 10 chars + null terminator
     mul ebx
     mov edx, OFFSET destinationLocations
     add edx, eax
     call WriteString
-    
+
     ret
 DisplayRouteInfo ENDP
 
