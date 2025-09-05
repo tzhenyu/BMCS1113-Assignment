@@ -198,7 +198,7 @@ creditCardText BYTE "Credit Card",0
 ewalletText BYTE "E-wallet",0
 
 ; Flight route information arrays
-departureLocations BYTE "Kuala Lumpur",0,"Penang       ",0,"Johor Bahru  ",0,"Kota Kinabalu",0,"Kuching      ",0
+departureLocations BYTE "Kuala Lumpur ",0,"Penang       ",0,"Johor Bahru  ",0,"Kota Kinabalu",0,"Kuching      ",0
 destinationLocations BYTE "Singapore ",0,"Bangkok   ",0,"Hong Kong ",0,"Manila    ",0,"Jakarta   ",0
 departureDates BYTE "2025-08-15",0,"2025-08-16",0,"2025-08-17",0,"2025-08-18",0,"2025-08-19",0
 
@@ -1061,6 +1061,7 @@ not_enough_balance:
     call WriteString
     call Crlf
     jmp getPayment
+
 askAnother:
     call crlf
     mov edx, OFFSET promptAnother
@@ -1078,14 +1079,14 @@ askAnother:
 
 go_menu:
     call selectTicket
-    ret
+    jmp payment
 
 exitApp:
     call crlf
     mov edx, OFFSET byeMessage
     call WriteString
     call crlf
-    exit         
+    exit                      
 
 payment ENDP
 
@@ -1400,15 +1401,15 @@ DisplayRouteInfo PROC
 ;
 ; Displays departure and destination based on selected flight
 ;-----------------------------------------------------------
-; Display departure location
+    ; Display departure location
     mov eax, selectedID
     dec eax                     ; Convert to 0-based index
-    mov ebx, 13                 ; Each location string is 13 chars
+    mov ebx, 14                 ; Each location string is 14 chars (13 chars + null)
     mul ebx
     mov edx, OFFSET departureLocations
     add edx, eax
     call WriteString
-
+    
     mov al, ' '
     call WriteChar
     mov al, '-'
@@ -1417,16 +1418,16 @@ DisplayRouteInfo PROC
     call WriteChar
     mov al, ' '
     call WriteChar
-
+    
     ; Display destination location
     mov eax, selectedID
     dec eax                     ; Convert to 0-based index
-    mov ebx, 11                 ; Each destination string is 10 chars + null terminator
+    mov ebx, 11                 ; Each destination string is 11 chars (10 + null)
     mul ebx
     mov edx, OFFSET destinationLocations
     add edx, eax
     call WriteString
-
+    
     ret
 DisplayRouteInfo ENDP
 
