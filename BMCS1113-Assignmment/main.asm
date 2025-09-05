@@ -89,6 +89,8 @@ promptPax      BYTE "Number of passengers [1-5]: ", 0
 promptName     BYTE "Passenger name: ", 0
 promptPassport BYTE "Passport number: ", 0
 errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
+errNameMsg     BYTE "Invalid name! Name must contain only letters and spaces: ", 0
+errPassportMsg BYTE "Invalid passport! Must be 6-15 characters (numbers and uppercase letters only): ", 0
 
 ; Passenger Data
 pax DWORD ?
@@ -695,7 +697,8 @@ PassengerLoop:
     
     push ecx  ; Save loop counter
     
-    ; Get passenger name 
+    ; Get passenger name with validation
+GetName:
     mov edx, OFFSET promptName
     call WriteString
     mov eax, esi
@@ -705,8 +708,14 @@ PassengerLoop:
     add edx, eax
     mov ecx, NAME_SIZE
     call ReadString
+    
+    ; Validate name (check if not empty and contains only letters/spaces)
+    call ValidateName
+    cmp eax, 0
+    je GetName
 
-    ; Get passport number (offset = esi * PASSPORT_SIZE)
+    ; Get passport number with validation
+GetPassport:
     mov edx, OFFSET promptPassport
     call WriteString
     mov eax, esi
@@ -716,6 +725,12 @@ PassengerLoop:
     add edx, eax
     mov ecx, PASSPORT_SIZE
     call ReadString
+    
+    ; Validate passport (check if not empty and alphanumeric)
+    call ValidatePassport
+    cmp eax, 0
+    je GetPassport
+    
     call Crlf
 
     pop ecx   ; Restore loop counter
@@ -879,6 +894,119 @@ Done:
     ret
 
 SummaryModule ENDP
+
+;-----------------------------------------------------------
+ValidateName PROC
+;
+; Validates passenger name (letters, spaces, and apostrophes only)
+; Input: EDX = pointer to name string
+; Output: EAX = 1 if valid, 0 if invalid
+;-----------------------------------------------------------
+    push esi
+    push ebx
+    
+    mov esi, edx
+    mov ebx, 0          ; Character count
+    
+CheckNameLoop:
+    mov al, [esi]
+    cmp al, 0           ; End of string?
+    je CheckNameLength
+    
+    ; Check if character is valid (letter, space, or apostrophe)
+    cmp al, ' '
+    je ValidNameChar
+    cmp al, 27h         ; Apostrophe
+    je ValidNameChar
+    cmp al, 'A'
+    jb InvalidNameChar
+    cmp al, 'Z'
+    jbe ValidNameChar
+    cmp al, 'a'
+    jb InvalidNameChar
+    cmp al, 'z'
+    ja InvalidNameChar
+    
+ValidNameChar:
+    inc ebx
+    inc esi
+    jmp CheckNameLoop
+    
+CheckNameLength:
+    cmp ebx, 1          ; Must have at least 1 character
+    jl InvalidNameChar
+    cmp ebx, 45         ; Maximum reasonable name length
+    jg InvalidNameChar
+    
+    mov eax, 1          ; Valid name
+    jmp NameValidationEnd
+    
+InvalidNameChar:
+    mov edx, OFFSET errNameMsg
+    call WriteString
+    call Crlf
+    mov eax, 0          ; Invalid name
+    
+NameValidationEnd:
+    pop ebx
+    pop esi
+    ret
+ValidateName ENDP
+
+;-----------------------------------------------------------
+ValidatePassport PROC
+;
+; Validates passport number (6-15 alphanumeric characters)
+; Input: EDX = pointer to passport string
+; Output: EAX = 1 if valid, 0 if invalid
+;-----------------------------------------------------------
+    push esi
+    push ebx
+    
+    mov esi, edx
+    mov ebx, 0          ; Character count
+    
+CheckPassportLoop:
+    mov al, [esi]
+    cmp al, 0           ; End of string?
+    je CheckPassportLength
+    
+    ; Check if character is numeric or uppercase letter only
+    cmp al, '0'
+    jb InvalidPassportChar
+    cmp al, '9'
+    jbe ValidPassportChar
+    cmp al, 'A'
+    jb InvalidPassportChar
+    cmp al, 'Z'
+    jbe ValidPassportChar
+    jmp InvalidPassportChar
+    
+ValidPassportChar:
+    inc ebx
+    inc esi
+    jmp CheckPassportLoop
+    
+CheckPassportLength:
+    cmp ebx, 6          ; Minimum 6 characters
+    jl InvalidPassportChar
+    cmp ebx, 15         ; Maximum 15 characters
+    jg InvalidPassportChar
+    
+    mov eax, 1          ; Valid passport
+    jmp PassportValidationEnd
+    
+InvalidPassportChar:
+    mov edx, OFFSET errPassportMsg
+    call WriteString
+    call Crlf
+    mov eax, 0          ; Invalid passport
+    
+PassportValidationEnd:
+    pop ebx
+    pop esi
+    ret
+ValidatePassport ENDP
 
 ; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Procedures
