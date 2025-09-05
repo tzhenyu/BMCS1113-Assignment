@@ -58,11 +58,16 @@ promptClass   BYTE "Choose class: [1] Economy [2] Business : ",0
 promptIns     BYTE "Add insurance? [1] Yes [2] No : ",0
 invalidMsg    BYTE "Invalid input! Please try again.",0
 
-msgBase       BYTE "Base Price: RM",0
-msgClass      BYTE " Class Adj: RM",0
-msgIns        BYTE " Insurance: RM",0
-msgSep        BYTE "---------------------",0
-msgTotal      BYTE "     Total: RM",0
+msgBase       BYTE "Base Price:      RM",0
+msgClass      BYTE "Class Adj:       RM",0
+msgIns        BYTE "Insurance:       RM",0
+msgSep        BYTE "-----------------------------",0
+msgTotal      BYTE "Total:           RM",0
+msgPerPax     BYTE "Pax:             ",0
+msgDiscount   BYTE "Discount (15%):  -RM",0
+msgSepLong    BYTE "-----------------------------",0
+msgSepLong2   BYTE "-----------------------------",0
+msgGrandTotal BYTE "Grand Total:     RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
@@ -87,8 +92,8 @@ errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
 
 ; Passenger Data
 pax DWORD ?
-passengerNames BYTE MAX_PASSENGERS DUP(NAME_SIZE DUP(?))
-passports BYTE MAX_PASSENGERS DUP(PASSPORT_SIZE DUP(?))
+passengerNames BYTE MAX_PASSENGERS * NAME_SIZE DUP(0)
+passports BYTE MAX_PASSENGERS * PASSPORT_SIZE DUP(0)
 
 ; For float formatting
 tempInt DWORD ?
@@ -108,8 +113,10 @@ passportLine BYTE "Passport: ",0
 separatorLine BYTE "-----------------------------",0Dh,0Ah,0
 
 ; Pricing
+discount REAL8 0.15
 total DWORD ?
 discountedTotal DWORD ?
+discountAmount DWORD ?
 
 ; ------------------------------------------------------------
 ; Booking History Module
@@ -193,7 +200,6 @@ ewalletText BYTE "E-wallet",0
 departureLocations BYTE "Kuala Lumpur",0,"Penang       ",0,"Johor Bahru  ",0,"Kota Kinabalu",0,"Kuching      ",0
 destinationLocations BYTE "Singapore ",0,"Bangkok   ",0,"Hong Kong ",0,"Manila    ",0,"Jakarta   ",0
 departureDates BYTE "2025-08-15",0,"2025-08-16",0,"2025-08-17",0,"2025-08-18",0,"2025-08-19",0
-
 
 ; ============================================================
 ; Code Section
@@ -535,11 +541,17 @@ AskInsurance:
 
 InsYes:
     mov insPrice, 100
-    call PassengerInputModule
-    jmp selectTicketEnd
+    jmp AfterInsurance
 
 InsNo:
     mov insPrice, 0
+
+AfterInsurance:
+    ; Compute total price for one passenger
+    mov eax, classPrice
+    add eax, insPrice
+    mov totalPrice, eax
+
     call PassengerInputModule
     jmp selectTicketEnd
 
@@ -555,9 +567,10 @@ ComputeTotal PROC
 ;-----------------------------------------------------------
 
 ; ------------ compute total price ------------
-    mov eax, classPrice
-    add eax, insPrice
-    mov totalPrice, eax
+    mov eax, totalPrice
+    mov ebx, pax
+    mul ebx
+    mov total, eax
 
 ; ----------- display breakdown -----------
     call Crlf
@@ -567,6 +580,7 @@ ComputeTotal PROC
     call WriteFloat2Decimal
     call Crlf
 
+    ; Display base price
     mov edx, OFFSET msgClass
     call WriteString
     mov eax, classPrice
@@ -574,19 +588,66 @@ ComputeTotal PROC
     call WriteFloat2Decimal
     call Crlf
 
+    ; Display Insurance
     mov edx, OFFSET msgIns
     call WriteString
     mov eax, insPrice
     call WriteFloat2Decimal
     call Crlf
 
-    mov edx, OFFSET msgSep
+    ; Display separator
+    mov edx, OFFSET msgSepLong2
     call WriteString
     call Crlf
 
+    ; Display total per passenger
     mov edx, OFFSET msgTotal
     call WriteString
     mov eax, totalPrice
+    call WriteFloat2Decimal
+    call Crlf
+
+    ; Display passenger count (Pax) with proper alignment
+    mov edx, OFFSET msgPerPax   ; "Pax:             "
+    call WriteString
+    mov eax, pax
+    call WriteDec
+    call Crlf
+
+    ; Check if user is member (user2) and apply discount
+    cmp currentUser, 2
+    jne NoDiscount
+    
+    ; Calculate discount amount (15% of total)
+    mov eax, total
+    mov ebx, 15
+    mul ebx
+    mov ebx, 100
+    div ebx
+    mov discountAmount, eax
+    
+    ; Display discount with minus sign
+    mov edx, OFFSET msgDiscount
+    call WriteString
+    mov eax, discountAmount
+    call WriteFloat2Decimal
+    call Crlf
+    
+    ; Subtract discount from total
+    mov eax, total
+    sub eax, discountAmount
+    mov total, eax
+
+NoDiscount:
+    ; Display long separator
+    mov edx, OFFSET msgSepLong
+    call WriteString
+    call Crlf
+    
+    ; Display grand total
+    mov edx, OFFSET msgGrandTotal
+    call WriteString
+    mov eax, total
     call WriteFloat2Decimal
     call Crlf
 
@@ -602,7 +663,10 @@ PassengerInputModule PROC
 ;
 ; Collects passenger information including names and passport numbers
 ;-----------------------------------------------------------
-    ; Get number of passengers
+
+    call clrscr
+
+; Get number of passengers
 GetPaxCount:
     call Crlf
     mov edx, OFFSET paxTitle
@@ -631,7 +695,7 @@ PassengerLoop:
     
     push ecx  ; Save loop counter
     
-    ; Get passenger name (offset = esi * NAME_SIZE)
+    ; Get passenger name 
     mov edx, OFFSET promptName
     call WriteString
     mov eax, esi
@@ -654,16 +718,14 @@ PassengerLoop:
     call ReadString
     call Crlf
 
-    mov edx, OFFSET nextSessionMessage
-    call writeString
-    call waitEnter
-
     pop ecx   ; Restore loop counter
     inc esi
 
     loop PassengerLoop
 
     call SummaryModule
+
+    ret
     
 PassengerInputModule ENDP
 
@@ -741,11 +803,13 @@ SummaryModule PROC
 ;
 ; Displays booking summary and calculates total price with membership discounts
 ;-----------------------------------------------------------
+
     ; Display header
     call clrscr
     mov edx, OFFSET summaryTitle
     call WriteString
 
+    call Crlf
 
     ; Display membership status message if member
     cmp currentUser, 1
@@ -760,9 +824,6 @@ RegularCustomer:
     call WriteString
 
 CalculatePrice:
-    ; First compute the totalPrice (classPrice + insPrice)
-    call computeTotal
-    
     ; Calculate base total (price * passengers)
     mov eax, totalPrice
     mov ebx, pax
@@ -773,6 +834,8 @@ CalculatePrice:
 DisplayPassengers:
     mov edx, OFFSET passengerHeader
     call WriteString
+    call crlf
+
     mov ecx, pax
     mov esi, 0
 
@@ -782,6 +845,8 @@ DisplayLoop:
     ; Display name
     mov edx, OFFSET passengerLine
     call WriteString
+
+    ; Calculate offset and display name
     mov eax, esi
     mov ebx, NAME_SIZE
     mul ebx
@@ -806,23 +871,10 @@ DisplayLoop:
     inc esi
     loop DisplayLoop
 
-    ; Display appropriate total
-    cmp currentUser, 2
-    je ShowMemberPrice
-
-    ; Show regular price for user 1
-    mov eax, total
-    call WriteFloat2Decimal
-    call Crlf
     jmp Done
 
-ShowMemberPrice:
-    ; Show discounted price for user 2
-    mov eax, total
-    call WriteFloat2Decimal
-    call Crlf
-
 Done:
+    call ComputeTotal
     call payment
     ret
 
