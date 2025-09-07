@@ -200,7 +200,7 @@ ewalletText BYTE "E-wallet",0
 ; Flight route information arrays
 departureLocations BYTE "Kuala Lumpur ",0,"Penang       ",0,"Johor Bahru  ",0,"Kota Kinabalu",0,"Kuching      ",0
 destinationLocations BYTE "Singapore ",0,"Bangkok   ",0,"Hong Kong ",0,"Manila    ",0,"Jakarta   ",0
-departureDates BYTE "2025-08-15",0,"2025-08-16",0,"2025-08-17",0,"2025-08-18",0,"2025-08-19",0
+departureDates BYTE "2025-12-14",0,"2025-12-16",0,"2025-12-18",0,"2025-12-18",0,"2025-12-19",0
 
 ; ============================================================
 ; Code Section
