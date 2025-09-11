@@ -202,6 +202,32 @@ departureLocations BYTE "Kuala Lumpur",0,"Penang       ",0,"Johor Bahru  ",0,"Ko
 destinationLocations BYTE "Singapore ",0,"Bangkok   ",0,"Hong Kong ",0,"Manila    ",0,"Jakarta   ",0
 departureDates BYTE "2025-12-14",0,"2025-12-16",0,"2025-12-18",0,"2025-12-18",0,"2025-12-19",0
 
+; Flight map
+FlightSeat1 BYTE "   A B C D E F", 0
+FlightSeat2 BYTE "01 O O O O O O", 0
+FlightSeat3 BYTE "02 O O O O O O", 0
+FlightSeat4 BYTE "03 O O O O O O", 0
+FlightSeat5 BYTE "04 O O O O O O", 0
+FlightSeat6 BYTE "05 O O O O O O", 0
+FlightSeat7 BYTE "06 O O O O O O", 0
+FlightSeat8 BYTE "07 O O O O O O", 0
+FlightSeat9 BYTE "08 O O O O O O", 0
+FlightSeat10 BYTE "09 O O O O O O", 0
+FlightSeat11 BYTE "10 O O O O O O", 0
+FlightSeat12 BYTE "11 O O O O O O", 0
+FlightSeat13 BYTE "12 O O O O O O", 0
+FlightSeat14 BYTE "13 O O O O O O", 0
+FlightSeat15 BYTE "14 O O O O O O", 0
+FlightSeat16 BYTE "15 O O O O O O", 0
+FlightSeat17 BYTE "16 O O O O O O", 0
+FlightSeat18 BYTE "17 O O O O O O", 0
+FlightSeat19 BYTE "18 O O O O O O", 0
+FlightSeat20 BYTE "19 O O O O O O", 0
+FlightSeat21 BYTE "20 O O O O O O", 0
+
+SeatRow BYTE "Enter row number (1-20): ", 0
+SeatColumn BYTE "Enter column letter (A-F): ", 0
+
 ; ============================================================
 ; Code Section
 ; ============================================================
@@ -552,7 +578,6 @@ AfterInsurance:
     mov eax, classPrice
     add eax, insPrice
     mov totalPrice, eax
-
     call PassengerInputModule
     jmp selectTicketEnd
 
@@ -560,7 +585,6 @@ selectTicketEnd:
     ret
 
 selectTicket ENDP
-
 ;-----------------------------------------------------------
 ComputeTotal PROC
 ;
