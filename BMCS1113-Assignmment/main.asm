@@ -187,7 +187,25 @@ ticketTotalLabel BYTE "TOTAL AMOUNT: RM",0
 ticketPaymentLabel BYTE "Payment Method: ",0
 ticketThankYou BYTE "Thank you for choosing our airline!",0
 ticketContact BYTE "For inquiries: +60-3-1234-5678",0
-printPrompt BYTE "Print ticket? [1] Yes [2] No: ",0
+printPrompt BYTE "Ticket options: [1] Display only [2] Save to file [3] Both [4] None: ",0
+
+filename BYTE "ticket_", 10 DUP(0), ".txt", 0
+fileHandle HANDLE ?
+bytesWritten DWORD ?
+fileErrorMsg BYTE "Error creating ticket file", 0
+fileSuccessMsg BYTE "Ticket saved to file: ", 0
+createFileError BYTE "Cannot create file", 0
+writeFileError BYTE "Error writing to file", 0
+
+; Constants for CreateOutputFile    
+GENERIC_WRITE = 40000000h
+CREATE_ALWAYS = 2
+FILE_ATTRIBUTE_NORMAL = 80h
+
+filenameBase BYTE "ticket_", 0
+fileExtension BYTE ".txt", 0
+arrowSymbol BYTE " -> ", 0
+dotSpace BYTE ". ", 0
 
 ; Class and insurance text
 economyText BYTE "Economy",0
@@ -1257,9 +1275,11 @@ DisplayAirlineName ENDP
 ; ------------------------------------------------------------
 
 ;-----------------------------------------------------------
+;-----------------------------------------------------------
 PrintTicket PROC
 ;
 ; Asks user if they want to print ticket and displays formatted ticket
+; Optionally saves to file using CreateOutputFile
 ;-----------------------------------------------------------
     call Crlf
     mov edx, OFFSET printPrompt
@@ -1267,8 +1287,12 @@ PrintTicket PROC
     call ReadInt
     
     cmp eax, 1
-    je DisplayTicket
+    je DisplayOnly
     cmp eax, 2
+    je SaveToFileOnly
+    cmp eax, 3
+    je DisplayAndSave
+    cmp eax, 4
     je TicketEnd
     
     ; Invalid input
@@ -1277,9 +1301,19 @@ PrintTicket PROC
     call Crlf
     jmp PrintTicket
     
-DisplayTicket:
+DisplayOnly:
     call Crlf
     call DisplayFormattedTicket
+    jmp TicketEnd
+
+SaveToFileOnly:
+    call SaveTicketToFile  ; This uses CreateOutputFile
+    jmp TicketEnd
+
+DisplayAndSave:
+    call Crlf
+    call DisplayFormattedTicket
+    call SaveTicketToFile  ; This uses CreateOutputFile
     jmp TicketEnd
 
 TicketEnd:
@@ -1564,4 +1598,304 @@ TicketPaxLoop:
     ret
 DisplayTicketPassengers ENDP
 
+; ------------------------------------------------------------
+; File Output Procedures
+; ------------------------------------------------------------
+
+;-----------------------------------------------------------
+GenerateFilename PROC
+;
+; Generates a unique filename using booking count
+; Format: ticket_X.txt where X is the booking number
+;-----------------------------------------------------------
+    ; Start with "ticket_"
+    mov edi, OFFSET filename
+    mov esi, OFFSET filenameBase
+    mov ecx, 7
+    rep movsb
+    
+    ; Convert booking count to string and add to filename
+    mov eax, bookingCount
+    mov edi, OFFSET filename + 7  ; Position after "ticket_"
+    call ConvertNumberToString
+    
+    ; Add ".txt" extension
+    mov edi, OFFSET filename + 7 + 10  ; Position after number
+    mov esi, OFFSET fileExtension
+    mov ecx, 4
+    rep movsb
+    
+    ret
+GenerateFilename ENDP
+
+;-----------------------------------------------------------
+ConvertNumberToString PROC
+;
+; Converts a number to string and stores it in buffer
+; Input: EAX = number to convert
+;        EDI = buffer to store string
+;-----------------------------------------------------------
+    pushad
+    mov ebx, 10
+    mov ecx, 0
+    
+    ; Count digits by repeatedly dividing by 10
+count_digits:
+    xor edx, edx
+    div ebx
+    push edx        ; Push remainder (digit)
+    inc ecx
+    test eax, eax
+    jnz count_digits
+    
+    ; Pop digits and convert to ASCII
+write_digits:
+    pop eax
+    add al, '0'
+    mov [edi], al
+    inc edi
+    loop write_digits
+    
+    mov byte ptr [edi], 0  ; Null terminate
+    popad
+    ret
+ConvertNumberToString ENDP
+
+;-----------------------------------------------------------
+WriteStringToFile PROC
+;
+; Writes a null-terminated string to file
+; Input: EDX = pointer to string
+;-----------------------------------------------------------
+    pushad
+    
+    ; Calculate string length
+    mov esi, edx
+    mov ecx, 0
+count_chars:
+    cmp byte ptr [esi], 0
+    je done_count
+    inc esi
+    inc ecx
+    jmp count_chars
+    
+done_count:
+    ; Write to file
+    mov eax, fileHandle
+    call WriteToFile
+    jnc write_ok
+    
+    ; Error handling
+    mov edx, OFFSET writeFileError
+    call WriteString
+    call Crlf
+    
+write_ok:
+    popad
+    ret
+WriteStringToFile ENDP
+
+;-----------------------------------------------------------
+WriteNewLineToFile PROC
+;
+; Writes CR+LF to file
+;-----------------------------------------------------------
+    pushad
+    mov eax, fileHandle
+    mov edx, OFFSET newline
+    mov ecx, 2  ; CR+LF
+    call WriteToFile
+    popad
+    ret
+WriteNewLineToFile ENDP
+
+;-----------------------------------------------------------
+WriteIntToFile PROC
+;
+; Writes an integer to the open file
+; Input: EAX = integer to write
+;-----------------------------------------------------------
+    pushad
+    ; Convert number to string
+    mov edi, OFFSET userInput  ; Use input buffer as temp storage
+    call ConvertNumberToString
+    
+    ; Write the string
+    mov edx, OFFSET userInput
+    call WriteStringToFile
+    popad
+    ret
+WriteIntToFile ENDP
+
+;-----------------------------------------------------------
+SaveTicketToFile PROC
+;
+; Saves the current ticket to a text file using CreateOutputFile
+;-----------------------------------------------------------
+    ; Generate filename based on booking count
+    call GenerateFilename
+    
+    ; Create the file using CreateOutputFile
+    mov edx, OFFSET filename
+    call CreateOutputFile
+    mov fileHandle, eax
+    
+    ; Check for errors
+    cmp eax, INVALID_HANDLE_VALUE
+    jne file_ok
+    
+    mov edx, OFFSET fileErrorMsg
+    call WriteString
+    call Crlf
+    ret
+    
+file_ok:
+    ; Write ticket header to file
+    mov edx, OFFSET ticketHeader1
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketHeader2
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketHeader3
+    call WriteStringToFile
+    call WriteNewLineToFile
+    call WriteNewLineToFile
+    
+    ; Write booking reference
+    mov edx, OFFSET ticketBookingRef
+    call WriteStringToFile
+    mov eax, bookingCount
+    call WriteIntToFile
+    call WriteNewLineToFile
+    
+    ; Write booking date
+    mov edx, OFFSET ticketDate
+    call WriteStringToFile
+    call WriteNewLineToFile
+    call WriteNewLineToFile
+    
+    ; Write separator
+    mov edx, OFFSET ticketSeparator
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    ; Write flight information header
+    mov edx, OFFSET ticketFlightInfo
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketSeparator
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    ; Write airline name
+    mov edx, OFFSET ticketAirlineLabel
+    call WriteStringToFile
+    call WriteAirlineNameToFile
+    call WriteNewLineToFile
+    
+    ; Write route information
+    mov edx, OFFSET ticketRouteLabel
+    call WriteStringToFile
+    call WriteRouteInfoToFile
+    call WriteNewLineToFile
+    
+    ; Write departure date
+    mov edx, OFFSET ticketDateLabel
+    call WriteStringToFile
+    call WriteDepartureDateToFile
+    call WriteNewLineToFile
+    
+    ; Write class information
+    mov edx, OFFSET ticketClassLabel
+    call WriteStringToFile
+    call WriteClassInfoToFile
+    call WriteNewLineToFile
+    
+    ; Write insurance information
+    mov edx, OFFSET ticketInsuranceLabel
+    call WriteStringToFile
+    call WriteInsuranceInfoToFile
+    call WriteNewLineToFile
+    call WriteNewLineToFile
+    
+    ; Write passenger information header
+    mov edx, OFFSET ticketSeparator
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketPaxInfo
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketSeparator
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    ; Write passenger count
+    mov edx, OFFSET ticketPaxCount
+    call WriteStringToFile
+    mov eax, pax
+    call WriteIntToFile
+    call WriteNewLineToFile
+    call WriteNewLineToFile
+    
+    ; Write all passenger details
+    call WritePassengersToFile
+    call WriteNewLineToFile
+    
+    ; Write payment information
+    mov edx, OFFSET ticketSeparator
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketTotalLabel
+    call WriteStringToFile
+    mov eax, total
+    call WriteIntToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketPaymentLabel
+    call WriteStringToFile
+    call WritePaymentMethodToFile
+    call WriteNewLineToFile
+    call WriteNewLineToFile
+    
+    ; Write footer
+    mov edx, OFFSET ticketHeader1
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketThankYou
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketContact
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    mov edx, OFFSET ticketHeader1
+    call WriteStringToFile
+    call WriteNewLineToFile
+    call WriteNewLineToFile
+    
+    ; Close the file
+    mov eax, fileHandle
+    call CloseFile
+    
+    ; Display success message
+    mov edx, OFFSET fileSuccessMsg
+    call WriteString
+    mov edx, OFFSET filename
+    call WriteString
+    call Crlf
+    
+    ret
+SaveTicketToFile ENDP
+
+
 END main
+
