@@ -2145,6 +2145,7 @@ WritePassengersToFile ENDP
 WritePaymentMethodToFile PROC
 ;
 ; Writes payment method to file
+; MODULE DONE BY ZHEN YU
 ;-----------------------------------------------------------
     call DisplayPaymentMethod
     ret
@@ -2294,10 +2295,11 @@ NextPassenger:
     ret
 SeatSelectionModule ENDP
 
+;-----------------------------------------------------------
 DisplaySeatMap PROC
 ;
 ; Displays the current seat map
-;
+;-----------------------------------------------------------
     mov edx, OFFSET FlightSeat1
     call WriteString
     call Crlf
@@ -2364,11 +2366,11 @@ DisplaySeatMap PROC
     ret
 DisplaySeatMap ENDP
 
+;-----------------------------------------------------------
 CheckSeatAvailability PROC
 ;
 ; Checks if selected seat is available
-; Returns: EAX = 1 if available, 0 if taken
-;
+;-----------------------------------------------------------
     ; Calculate column offset (A=0, B=2, C=4, D=6, E=8, F=10)
     mov al, selectedColumn
     sub al, 'A'
@@ -2502,10 +2504,12 @@ SeatNotAvailable:
     ret
 CheckSeatAvailability ENDP
 
+;-----------------------------------------------------------
 MarkSeatTaken PROC
 ;
 ; Marks the selected seat as taken (X)
-;
+;-----------------------------------------------------------
+
     ; Calculate column offset
     mov al, selectedColumn
     sub al, 'A'
