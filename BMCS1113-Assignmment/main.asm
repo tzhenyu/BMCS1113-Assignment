@@ -96,9 +96,12 @@ errPassportMsg BYTE "Invalid passport! Must be 6-15 characters (numbers and uppe
 pax DWORD ?
 passengerNames BYTE MAX_PASSENGERS * NAME_SIZE DUP(0)
 passports BYTE MAX_PASSENGERS * PASSPORT_SIZE DUP(0)
+passengerSeatRows DWORD MAX_PASSENGERS DUP(?)
+passengerSeatColumns BYTE MAX_PASSENGERS DUP(?)
 
 ; For float formatting
 tempInt DWORD ?
+tempChar BYTE 2 DUP(?)  ; Temporary single character string
 hundred REAL8 100.0
 dotStr BYTE ".",0
 
@@ -183,6 +186,7 @@ ticketClassLabel BYTE "Class: ",0
 ticketInsuranceLabel BYTE "Insurance: ",0
 ticketPaxInfo BYTE "PASSENGER INFORMATION",0
 ticketPaxCount BYTE "Number of Passengers: ",0
+seatInfoLabel BYTE " (Seat: ",0
 ticketTotalLabel BYTE "TOTAL AMOUNT: RM",0
 ticketPaymentLabel BYTE "Payment Method: ",0
 ticketThankYou BYTE "Thank you for choosing our airline!",0
@@ -206,6 +210,7 @@ filenameBase BYTE "ticket_", 0
 fileExtension BYTE ".txt", 0
 arrowSymbol BYTE " -> ", 0
 dotSpace BYTE ". ", 0
+closeParen BYTE ")", 0
 
 ; Class and insurance text
 economyText BYTE "Economy",0
@@ -1584,6 +1589,16 @@ TicketPaxLoop:
     mov edx, OFFSET passengerNames
     add edx, eax
     call WriteString
+    
+    ; Display seat information
+    mov edx, OFFSET seatInfoLabel
+    call WriteString
+    mov eax, [passengerSeatRows + esi*4]
+    call WriteDec
+    mov al, [passengerSeatColumns + esi]
+    call WriteChar
+    mov al, ')'
+    call WriteChar
     call Crlf
     
     pop ecx
@@ -1962,6 +1977,22 @@ PassengerFileLoop:
     mov edx, OFFSET passengerNames
     add edx, eax
     call WriteStringToFile
+    
+    ; Write seat information
+    mov edx, OFFSET seatInfoLabel
+    call WriteStringToFile
+    mov eax, [passengerSeatRows + esi*4]
+    call WriteIntToFile
+    
+    ; Write seat column character
+    mov al, [passengerSeatColumns + esi]
+    mov tempChar, al
+    mov tempChar+1, 0  ; null terminate
+    mov edx, OFFSET tempChar
+    call WriteStringToFile
+    
+    mov edx, OFFSET closeParen
+    call WriteStringToFile
     call WriteNewLineToFile
     
     pop ecx
@@ -2074,6 +2105,13 @@ CheckValidColumn:
     
     ; Mark seat as taken
     call MarkSeatTaken
+    
+    ; Store seat information for this passenger
+    mov eax, selectedRow
+    mov ebx, esi
+    mov [passengerSeatRows + ebx*4], eax
+    mov al, selectedColumn
+    mov [passengerSeatColumns + ebx], al
     
     ; Confirm selection and update display
     call Clrscr
