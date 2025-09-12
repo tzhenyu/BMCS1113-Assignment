@@ -68,6 +68,7 @@ msgDiscount   BYTE "Discount (15%):  -RM",0
 msgSepLong    BYTE "-----------------------------",0
 msgSepLong2   BYTE "-----------------------------",0
 msgGrandTotal BYTE "Grand Total:     RM",0
+msgAvgCost    BYTE "Average/Pax:     RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
@@ -91,6 +92,8 @@ promptPassport BYTE "Passport number: ", 0
 errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
 errNameMsg     BYTE "Invalid name! Name must contain only letters and spaces: ", 0
 errPassportMsg BYTE "Invalid passport! Must be 6-15 characters (numbers and uppercase letters only): ", 0
+errDuplicateName BYTE "Name already exists! Please enter a different name: ", 0
+errDuplicatePassport BYTE "Passport number already exists! Please enter a different passport: ", 0
 
 ; Passenger Data
 pax DWORD ?
@@ -710,7 +713,7 @@ NoDiscount:
     mov eax, total
     call WriteFloat2Decimal
     call Crlf
-
+    
     ret
 ComputeTotal ENDP
 
@@ -752,8 +755,13 @@ GetName:
     mov ecx, NAME_SIZE
     call ReadString
     
-    ; Validate name (check if not empty and contains only letters/spaces)
+    ; Validate name format (check if not empty and contains only letters/spaces)
     call ValidateName
+    cmp eax, 0
+    je GetName
+    
+    ; Check for duplicate name
+    call CheckDuplicateName
     cmp eax, 0
     je GetName
 
@@ -769,8 +777,13 @@ GetPassport:
     mov ecx, PASSPORT_SIZE
     call ReadString
     
-    ; Validate passport (check if not empty and alphanumeric)
+    ; Validate passport format (check if not empty and alphanumeric)
     call ValidatePassport
+    cmp eax, 0
+    je GetPassport
+    
+    ; Check for duplicate passport
+    call CheckDuplicatePassport
     cmp eax, 0
     je GetPassport
     
@@ -995,6 +1008,132 @@ PassportValidationEnd:
     ret
 ValidatePassport ENDP
 
+;-----------------------------------------------------------
+CheckDuplicateName PROC
+;
+; Checks if current passenger name already exists in the booking
+; Input: ESI = current passenger index
+; Output: EAX = 1 if unique, 0 if duplicate
+;-----------------------------------------------------------
+    push esi
+    push edi
+    push ecx
+    push ebx
+    
+    ; Get pointer to current passenger name
+    mov eax, esi
+    mov ebx, NAME_SIZE
+    mul ebx
+    mov edi, OFFSET passengerNames
+    add edi, eax
+    
+    ; Check against all previous passengers
+    mov ecx, esi        ; Number of previous passengers to check
+    cmp ecx, 0
+    je UniqueNameFound  ; If first passenger, no duplicates possible
+    
+    mov ebx, 0          ; Index for comparison
+    
+CheckNameLoop:
+    push ecx
+    
+    ; Get pointer to passenger[ebx] name
+    mov eax, ebx
+    mov ecx, NAME_SIZE
+    mul ecx
+    mov edx, OFFSET passengerNames
+    add edx, eax
+    
+    ; Compare names
+    INVOKE Str_compare, edi, edx
+    je DuplicateNameFound
+    
+    inc ebx
+    pop ecx
+    loop CheckNameLoop
+    
+UniqueNameFound:
+    mov eax, 1
+    jmp CheckNameEnd
+    
+DuplicateNameFound:
+    pop ecx
+    mov edx, OFFSET errDuplicateName
+    call WriteString
+    call Crlf
+    mov eax, 0
+    
+CheckNameEnd:
+    pop ebx
+    pop ecx
+    pop edi
+    pop esi
+    ret
+CheckDuplicateName ENDP
+
+;-----------------------------------------------------------
+CheckDuplicatePassport PROC
+;
+; Checks if current passenger passport already exists in the booking
+; Input: ESI = current passenger index
+; Output: EAX = 1 if unique, 0 if duplicate
+;-----------------------------------------------------------
+    push esi
+    push edi
+    push ecx
+    push ebx
+    
+    ; Get pointer to current passenger passport
+    mov eax, esi
+    mov ebx, PASSPORT_SIZE
+    mul ebx
+    mov edi, OFFSET passports
+    add edi, eax
+    
+    ; Check against all previous passengers
+    mov ecx, esi        ; Number of previous passengers to check
+    cmp ecx, 0
+    je UniquePassportFound  ; If first passenger, no duplicates possible
+    
+    mov ebx, 0          ; Index for comparison
+    
+CheckPassportLoop:
+    push ecx
+    
+    ; Get pointer to passenger[ebx] passport
+    mov eax, ebx
+    mov ecx, PASSPORT_SIZE
+    mul ecx
+    mov edx, OFFSET passports
+    add edx, eax
+    
+    ; Compare passports
+    INVOKE Str_compare, edi, edx
+    je DuplicatePassportFound
+    
+    inc ebx
+    pop ecx
+    loop CheckPassportLoop
+    
+UniquePassportFound:
+    mov eax, 1
+    jmp CheckPassportEnd
+    
+DuplicatePassportFound:
+    pop ecx
+    mov edx, OFFSET errDuplicatePassport
+    call WriteString
+    call Crlf
+    mov eax, 0
+    
+CheckPassportEnd:
+    pop ebx
+    pop ecx
+    pop edi
+    pop esi
+    ret
+CheckDuplicatePassport ENDP
+
 ; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Procedures
 ; ------------------------------------------------------------
@@ -1121,7 +1260,7 @@ askAnother:
 
 go_menu:
     call selectTicket
-    jmp payment
+    ret
 
 exitApp:
     call crlf
