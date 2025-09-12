@@ -2151,11 +2151,11 @@ WritePaymentMethodToFile PROC
     ret
 WritePaymentMethodToFile ENDP
 
-
+;-----------------------------------------------------------
 SeatSelectionModule PROC
 ;
-; Handles seat selection for all passengers
-;
+;Handles seat selection for all passengers
+;-----------------------------------------------------------
     call Clrscr
     call DisplaySeatMap
     call Crlf
