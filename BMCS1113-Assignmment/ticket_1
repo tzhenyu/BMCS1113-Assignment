@@ -8,21 +8,23 @@ Booking Date: 2025-09-04
 -----------------------------------------------
 FLIGHT INFORMATION
 -----------------------------------------------
-Airline: SkyJet Airlines
-Route: Kuala Lumpur  -> Singapore     
-Departure: 2025-12-14
-Class: Economy
+Airline: CloudNine Airways
+Route:  ->  
+Departure: 2025-12-18
+Class: Business
 Insurance: Yes
 
 -----------------------------------------------
 PASSENGER INFORMATION
 -----------------------------------------------
-Number of Passengers: 1
+Number of Passengers: 3
 
-1. tan (Seat: 1A)
+1. TAN (Seat: 1A)
+2. ZHEN (Seat: 1B)
+3. YU (Seat: 1C)
 
 -----------------------------------------------
-TOTAL AMOUNT: RM625.00
+TOTAL AMOUNT: RM27030.00
 Payment Method: Credit Card
 
 ===============================================
