@@ -107,6 +107,8 @@ tempInt DWORD ?
 tempChar BYTE 2 DUP(?)  ; Temporary single character string
 hundred REAL8 100.0
 dotStr BYTE ".",0
+zeroZeroStr BYTE "00",0
+tempBuffer BYTE 32 DUP(0)
 
 ; Module 6 Data
 summaryTitle BYTE "----- Booking Ticket -----",0Dh,0Ah,0
@@ -222,10 +224,11 @@ yesText BYTE "Yes",0
 noText BYTE "No",0
 creditCardText BYTE "Credit Card",0
 ewalletText BYTE "E-wallet",0
+arrowStr BYTE " -> ",0
 
-; Flight route information arrays
-departureLocations BYTE "Kuala Lumpur",0,"Penang       ",0,"Johor Bahru  ",0,"Kota Kinabalu",0,"Kuching      ",0
-destinationLocations BYTE "Singapore ",0,"Bangkok   ",0,"Hong Kong ",0,"Manila    ",0,"Jakarta   ",0
+; Flight route information arrays (each string exactly 14 bytes including null terminator)
+departureLocations BYTE "Kuala Lumpur ",0,"Penang        ",0,"Johor Bahru   ",0,"Kota Kinabalu ",0,"Kuching       ",0
+destinationLocations BYTE "Singapore     ",0,"Bangkok       ",0,"Hong Kong     ",0,"Manila        ",0,"Jakarta       ",0
 departureDates BYTE "2025-12-14",0,"2025-12-16",0,"2025-12-18",0,"2025-12-18",0,"2025-12-19",0
 
 ; Flight map
@@ -1600,7 +1603,7 @@ DisplayRouteInfo PROC
     ; Display departure location
     mov eax, selectedID
     dec eax                     ; Convert to 0-based index
-    mov ebx, 13                 ; Each location string is 13 chars
+    mov ebx, 14                 ; Each location string is 14 chars (13 + null)
     mul ebx
     mov edx, OFFSET departureLocations
     add edx, eax
@@ -1618,7 +1621,7 @@ DisplayRouteInfo PROC
     ; Display destination location
     mov eax, selectedID
     dec eax                     ; Convert to 0-based index
-    mov ebx, 10                 ; Each destination string is 10 chars
+    mov ebx, 14                 ; Each destination string is 14 chars (13 + null)
     mul ebx
     mov edx, OFFSET destinationLocations
     add edx, eax
@@ -1877,6 +1880,23 @@ WriteIntToFile PROC
 WriteIntToFile ENDP
 
 ;-----------------------------------------------------------
+WriteFloatToFile PROC
+;
+; Writes an integer as money format with .00 to file
+; Input: EAX = integer value to write
+;-----------------------------------------------------------
+    ; Write the integer part
+    call WriteIntToFile
+    
+    ; Write the decimal point and zeros
+    mov edx, OFFSET dotStr
+    call WriteStringToFile
+    mov edx, OFFSET zeroZeroStr
+    call WriteStringToFile
+    ret
+WriteFloatToFile ENDP
+
+;-----------------------------------------------------------
 SaveTicketToFile PROC
 ;
 ; Saves the current ticket to a text file using CreateOutputFile
@@ -2004,7 +2024,7 @@ file_ok:
     mov edx, OFFSET ticketTotalLabel
     call WriteStringToFile
     mov eax, total
-    call WriteIntToFile
+    call WriteFloatToFile
     call WriteNewLineToFile
     
     mov edx, OFFSET ticketPaymentLabel
@@ -2051,7 +2071,35 @@ WriteAirlineNameToFile PROC
 ; Writes airline name to file based on selected flight
 ;-----------------------------------------------------------
     mov eax, selectedID
-    call DisplayAirlineName
+    cmp eax, 1
+    je WriteAirline1ToFile
+    cmp eax, 2
+    je WriteAirline2ToFile
+    cmp eax, 3
+    je WriteAirline3ToFile
+    cmp eax, 4
+    je WriteAirline4ToFile
+    jmp WriteAirline5ToFile
+    
+WriteAirline1ToFile:
+    mov edx, OFFSET airline1
+    call WriteStringToFile
+    ret
+WriteAirline2ToFile:
+    mov edx, OFFSET airline2
+    call WriteStringToFile
+    ret
+WriteAirline3ToFile:
+    mov edx, OFFSET airline3
+    call WriteStringToFile
+    ret
+WriteAirline4ToFile:
+    mov edx, OFFSET airline4
+    call WriteStringToFile
+    ret
+WriteAirline5ToFile:
+    mov edx, OFFSET airline5
+    call WriteStringToFile
     ret
 WriteAirlineNameToFile ENDP
 
@@ -2060,7 +2108,28 @@ WriteRouteInfoToFile PROC
 ;
 ; Writes route information to file
 ;-----------------------------------------------------------
-    call DisplayRouteInfo
+    ; Write departure location
+    mov eax, selectedID
+    dec eax                     ; Convert to 0-based index
+    mov ebx, 14                 ; Each location string is 14 chars (13 + null)
+    mul ebx
+    mov edx, OFFSET departureLocations
+    add edx, eax
+    call WriteStringToFile
+    
+    ; Write " -> "
+    mov edx, OFFSET arrowStr
+    call WriteStringToFile
+    
+    ; Write destination location
+    mov eax, selectedID
+    dec eax                     ; Convert to 0-based index
+    mov ebx, 14                 ; Each destination string is 14 chars (13 + null)
+    mul ebx
+    mov edx, OFFSET destinationLocations
+    add edx, eax
+    call WriteStringToFile
+    
     ret
 WriteRouteInfoToFile ENDP
 
@@ -2069,7 +2138,13 @@ WriteDepartureDateToFile PROC
 ;
 ; Writes departure date to file
 ;-----------------------------------------------------------
-    call DisplayDepartureDate
+    mov eax, selectedID
+    dec eax                     ; Convert to 0-based index
+    mov ebx, 11                 ; Each date string is 11 chars (10 + null)
+    mul ebx
+    mov edx, OFFSET departureDates
+    add edx, eax
+    call WriteStringToFile
     ret
 WriteDepartureDateToFile ENDP
 
@@ -2078,7 +2153,19 @@ WriteClassInfoToFile PROC
 ;
 ; Writes class information to file
 ;-----------------------------------------------------------
-    call DisplayClassInfo
+    mov eax, classPrice
+    mov ebx, basePrice
+    cmp eax, ebx
+    je WriteEconomyToFile
+    
+    ; Business class
+    mov edx, OFFSET businessText
+    call WriteStringToFile
+    ret
+    
+WriteEconomyToFile:
+    mov edx, OFFSET economyText
+    call WriteStringToFile
     ret
 WriteClassInfoToFile ENDP
 
@@ -2087,7 +2174,17 @@ WriteInsuranceInfoToFile PROC
 ;
 ; Writes insurance information to file
 ;-----------------------------------------------------------
-    call DisplayInsuranceInfo
+    cmp insPrice, 0
+    je WriteNoInsuranceToFile
+    
+    ; Has insurance
+    mov edx, OFFSET yesText
+    call WriteStringToFile
+    ret
+    
+WriteNoInsuranceToFile:
+    mov edx, OFFSET noText
+    call WriteStringToFile
     ret
 WriteInsuranceInfoToFile ENDP
 
@@ -2147,7 +2244,17 @@ WritePaymentMethodToFile PROC
 ; Writes payment method to file
 ; MODULE DONE BY ZHEN YU
 ;-----------------------------------------------------------
-    call DisplayPaymentMethod
+    cmp paymentMethod, 1
+    je WriteCreditCardToFile
+    
+    ; E-wallet
+    mov edx, OFFSET ewalletText
+    call WriteStringToFile
+    ret
+    
+WriteCreditCardToFile:
+    mov edx, OFFSET creditCardText
+    call WriteStringToFile
     ret
 WritePaymentMethodToFile ENDP
 
