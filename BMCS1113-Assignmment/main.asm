@@ -1298,6 +1298,7 @@ SaveBooking PROC
     
     ; Increment booking count
     inc bookingCount
+    ret
     
 SaveBooking ENDP
 
@@ -1416,7 +1417,6 @@ DisplayAirlineName ENDP
 ; Ticket Printing Procedures
 ; ------------------------------------------------------------
 
-;-----------------------------------------------------------
 ;-----------------------------------------------------------
 PrintTicket PROC
 ;
