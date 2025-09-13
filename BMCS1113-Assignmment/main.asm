@@ -55,7 +55,7 @@ flightPrices DWORD 525,2700,7500,3300,5400
 ; prompts and messages
 promptFlight  BYTE "Choose your option [0-6]: ",0
 promptClass   BYTE "Choose class: [1] Economy [2] Business : ",0
-promptIns   BYTE "Add insurance? [1] Yes [2] No : ",0
+promptIns     BYTE "Add insurance? [1] Yes [2] No : ",0
 invalidMsg    BYTE "Invalid input! Please try again.",0
 
 msgBase       BYTE "Base Price:      RM",0
@@ -68,6 +68,7 @@ msgDiscount   BYTE "Discount (15%):  -RM",0
 msgSepLong    BYTE "-----------------------------",0
 msgSepLong2   BYTE "-----------------------------",0
 msgGrandTotal BYTE "Grand Total:     RM",0
+msgAvgCost    BYTE "Average/Pax:     RM",0
 
 ; temp/user variables
 selectedID    DWORD ?
@@ -91,14 +92,19 @@ promptPassport BYTE "Passport number: ", 0
 errPaxMsg      BYTE "Invalid input. Please enter [1-5]: ", 0
 errNameMsg     BYTE "Invalid name! Name must contain only letters and spaces: ", 0
 errPassportMsg BYTE "Invalid passport! Must be 6-15 characters (numbers and uppercase letters only): ", 0
+errDuplicateName BYTE "Name already exists! Please enter a different name: ", 0
+errDuplicatePassport BYTE "Passport number already exists! Please enter a different passport: ", 0
 
 ; Passenger Data
 pax DWORD ?
 passengerNames BYTE MAX_PASSENGERS * NAME_SIZE DUP(0)
 passports BYTE MAX_PASSENGERS * PASSPORT_SIZE DUP(0)
+passengerSeatRows DWORD MAX_PASSENGERS DUP(?)
+passengerSeatColumns BYTE MAX_PASSENGERS DUP(?)
 
 ; For float formatting
 tempInt DWORD ?
+tempChar BYTE 2 DUP(?)  ; Temporary single character string
 hundred REAL8 100.0
 dotStr BYTE ".",0
 
@@ -183,6 +189,7 @@ ticketClassLabel BYTE "Class: ",0
 ticketInsuranceLabel BYTE "Insurance: ",0
 ticketPaxInfo BYTE "PASSENGER INFORMATION",0
 ticketPaxCount BYTE "Number of Passengers: ",0
+seatInfoLabel BYTE " (Seat: ",0
 ticketTotalLabel BYTE "TOTAL AMOUNT: RM",0
 ticketPaymentLabel BYTE "Payment Method: ",0
 ticketThankYou BYTE "Thank you for choosing our airline!",0
@@ -206,6 +213,7 @@ filenameBase BYTE "ticket_", 0
 fileExtension BYTE ".txt", 0
 arrowSymbol BYTE " -> ", 0
 dotSpace BYTE ". ", 0
+closeParen BYTE ")", 0
 
 ; Class and insurance text
 economyText BYTE "Economy",0
@@ -245,6 +253,13 @@ FlightSeat21 BYTE "20 O O O O O O", 0
 
 SeatRow BYTE "Enter row number (1-20): ", 0
 SeatColumn BYTE "Enter column letter (A-F): ", 0
+; Seat selection variables
+selectedRow DWORD ?
+selectedColumn BYTE ?
+seatInvalidMsg BYTE "Invalid seat selection. Please try again.",0
+seatTakenMsg BYTE "Seat is already taken. Please select another seat.",0
+seatConfirmMsg BYTE "Seat ",0
+seatConfirmMsg2 BYTE " selected for passenger ",0
 
 ; ============================================================
 ; Code Section
@@ -596,6 +611,11 @@ AfterInsurance:
     mov eax, classPrice
     add eax, insPrice
     mov totalPrice, eax
+    
+    ; Add seat selection here BEFORE passenger input
+    call SeatSelectionModule
+    
+    ; Now continue with passenger input
     call PassengerInputModule
     jmp selectTicketEnd
 
@@ -693,7 +713,7 @@ NoDiscount:
     mov eax, total
     call WriteFloat2Decimal
     call Crlf
-
+    
     ret
 ComputeTotal ENDP
 
@@ -709,26 +729,11 @@ PassengerInputModule PROC
 
     call clrscr
 
-; Get number of passengers
-GetPaxCount:
+; Skip passenger count since it was already set in SeatSelectionModule
+; Display passenger title
     call Crlf
     mov edx, OFFSET paxTitle
     call WriteString
-    mov edx, OFFSET promptPax
-    call WriteString
-    call ReadInt
-    
-    cmp eax, 1
-    jl InvalidInput
-    cmp eax, MAX_PASSENGERS
-    jg InvalidInput
-    mov pax, eax
-    jmp GetPassengerData
-
-InvalidInput:
-    mov edx, OFFSET errPaxMsg
-    call WriteString
-    jmp GetPaxCount
 
 GetPassengerData:
     mov ecx, pax
@@ -750,8 +755,13 @@ GetName:
     mov ecx, NAME_SIZE
     call ReadString
     
-    ; Validate name (check if not empty and contains only letters/spaces)
+    ; Validate name format (check if not empty and contains only letters/spaces)
     call ValidateName
+    cmp eax, 0
+    je GetName
+    
+    ; Check for duplicate name
+    call CheckDuplicateName
     cmp eax, 0
     je GetName
 
@@ -767,8 +777,13 @@ GetPassport:
     mov ecx, PASSPORT_SIZE
     call ReadString
     
-    ; Validate passport (check if not empty and alphanumeric)
+    ; Validate passport format (check if not empty and alphanumeric)
     call ValidatePassport
+    cmp eax, 0
+    je GetPassport
+    
+    ; Check for duplicate passport
+    call CheckDuplicatePassport
     cmp eax, 0
     je GetPassport
     
@@ -799,7 +814,6 @@ WriteFloat2Decimal PROC
     call WriteChar
     ret
 WriteFloat2Decimal ENDP
-
 ;-----------------------------------------------------------
 SummaryModule PROC
 ;
@@ -879,7 +893,6 @@ Done:
     call ComputeTotal
     call payment
     ret
-
 SummaryModule ENDP
 
 ;-----------------------------------------------------------
@@ -891,21 +904,17 @@ ValidateName PROC
 ;-----------------------------------------------------------
     push esi
     push ebx
-    push ecx
     
     mov esi, edx
     mov ebx, 0          ; Character count
-    mov ecx, 0          ; Valid character flag
     
 CheckNameLoop:
     mov al, [esi]
     cmp al, 0           ; End of string?
     je CheckNameLength
     
-    ; Check if character is valid (letter, space, hyphen, or apostrophe)
+    ; Check if character is valid (letter, space, or apostrophe)
     cmp al, ' '
-    je ValidNameChar
-    cmp al, '-'         ; Allow hyphens
     je ValidNameChar
     cmp al, 27h         ; Apostrophe
     je ValidNameChar
@@ -939,7 +948,6 @@ InvalidNameChar:
     mov eax, 0          ; Invalid name
     
 NameValidationEnd:
-    pop ecx
     pop ebx
     pop esi
     ret
@@ -999,6 +1007,132 @@ PassportValidationEnd:
     pop esi
     ret
 ValidatePassport ENDP
+
+;-----------------------------------------------------------
+CheckDuplicateName PROC
+;
+; Checks if current passenger name already exists in the booking
+; Input: ESI = current passenger index
+; Output: EAX = 1 if unique, 0 if duplicate
+;-----------------------------------------------------------
+    push esi
+    push edi
+    push ecx
+    push ebx
+    
+    ; Get pointer to current passenger name
+    mov eax, esi
+    mov ebx, NAME_SIZE
+    mul ebx
+    mov edi, OFFSET passengerNames
+    add edi, eax
+    
+    ; Check against all previous passengers
+    mov ecx, esi        ; Number of previous passengers to check
+    cmp ecx, 0
+    je UniqueNameFound  ; If first passenger, no duplicates possible
+    
+    mov ebx, 0          ; Index for comparison
+    
+CheckNameLoop:
+    push ecx
+    
+    ; Get pointer to passenger[ebx] name
+    mov eax, ebx
+    mov ecx, NAME_SIZE
+    mul ecx
+    mov edx, OFFSET passengerNames
+    add edx, eax
+    
+    ; Compare names
+    INVOKE Str_compare, edi, edx
+    je DuplicateNameFound
+    
+    inc ebx
+    pop ecx
+    loop CheckNameLoop
+    
+UniqueNameFound:
+    mov eax, 1
+    jmp CheckNameEnd
+    
+DuplicateNameFound:
+    pop ecx
+    mov edx, OFFSET errDuplicateName
+    call WriteString
+    call Crlf
+    mov eax, 0
+    
+CheckNameEnd:
+    pop ebx
+    pop ecx
+    pop edi
+    pop esi
+    ret
+CheckDuplicateName ENDP
+
+;-----------------------------------------------------------
+CheckDuplicatePassport PROC
+;
+; Checks if current passenger passport already exists in the booking
+; Input: ESI = current passenger index
+; Output: EAX = 1 if unique, 0 if duplicate
+;-----------------------------------------------------------
+    push esi
+    push edi
+    push ecx
+    push ebx
+    
+    ; Get pointer to current passenger passport
+    mov eax, esi
+    mov ebx, PASSPORT_SIZE
+    mul ebx
+    mov edi, OFFSET passports
+    add edi, eax
+    
+    ; Check against all previous passengers
+    mov ecx, esi        ; Number of previous passengers to check
+    cmp ecx, 0
+    je UniquePassportFound  ; If first passenger, no duplicates possible
+    
+    mov ebx, 0          ; Index for comparison
+    
+CheckPassportLoop:
+    push ecx
+    
+    ; Get pointer to passenger[ebx] passport
+    mov eax, ebx
+    mov ecx, PASSPORT_SIZE
+    mul ecx
+    mov edx, OFFSET passports
+    add edx, eax
+    
+    ; Compare passports
+    INVOKE Str_compare, edi, edx
+    je DuplicatePassportFound
+    
+    inc ebx
+    pop ecx
+    loop CheckPassportLoop
+    
+UniquePassportFound:
+    mov eax, 1
+    jmp CheckPassportEnd
+    
+DuplicatePassportFound:
+    pop ecx
+    mov edx, OFFSET errDuplicatePassport
+    call WriteString
+    call Crlf
+    mov eax, 0
+    
+CheckPassportEnd:
+    pop ebx
+    pop ecx
+    pop edi
+    pop esi
+    ret
+CheckDuplicatePassport ENDP
 
 ; ------------------------------------------------------------
 ; ADAM - Payment Processing and Transaction Procedures
@@ -1126,7 +1260,7 @@ askAnother:
 
 go_menu:
     call selectTicket
-    jmp payment
+    ret
 
 exitApp:
     call crlf
@@ -1161,7 +1295,7 @@ SaveBooking PROC
     
     ; Increment booking count
     inc bookingCount
-    ret
+    
 SaveBooking ENDP
 
 ;-----------------------------------------------------------
@@ -1280,6 +1414,7 @@ DisplayAirlineName ENDP
 ; ------------------------------------------------------------
 
 ;-----------------------------------------------------------
+;-----------------------------------------------------------
 PrintTicket PROC
 ;
 ; Asks user if they want to print ticket and displays formatted ticket
@@ -1311,13 +1446,13 @@ DisplayOnly:
     jmp TicketEnd
 
 SaveToFileOnly:
-    call SaveTicketToFile
+    call SaveTicketToFile  ; This uses CreateOutputFile
     jmp TicketEnd
 
 DisplayAndSave:
     call Crlf
     call DisplayFormattedTicket
-    call SaveTicketToFile
+    call SaveTicketToFile  ; This uses CreateOutputFile
     jmp TicketEnd
 
 TicketEnd:
@@ -1593,6 +1728,16 @@ TicketPaxLoop:
     mov edx, OFFSET passengerNames
     add edx, eax
     call WriteString
+    
+    ; Display seat information
+    mov edx, OFFSET seatInfoLabel
+    call WriteString
+    mov eax, [passengerSeatRows + esi*4]
+    call WriteDec
+    mov al, [passengerSeatColumns + esi]
+    call WriteChar
+    mov al, ')'
+    call WriteChar
     call Crlf
     
     pop ecx
@@ -1603,11 +1748,11 @@ TicketPaxLoop:
 DisplayTicketPassengers ENDP
 
 ; ------------------------------------------------------------
-; File Output Procedures - FIXED VERSION
+; File Output Procedures
 ; ------------------------------------------------------------
 
 ;-----------------------------------------------------------
-GenerateFilename PROC USES eax ebx ecx edx edi esi
+GenerateFilename PROC
 ;
 ; Generates a unique filename using booking count
 ; Format: ticket_X.txt where X is the booking number
@@ -1621,18 +1766,29 @@ GenerateFilename PROC USES eax ebx ecx edx edi esi
     ; Convert booking count to string and add to filename
     mov eax, bookingCount
     mov edi, OFFSET filename + 7  ; Position after "ticket_"
+    call ConvertNumberToString
     
-    ; Convert number to string
+    ; Add ".txt" extension
+    mov edi, OFFSET filename + 7 + 10  ; Position after number
+    mov esi, OFFSET fileExtension
+    mov ecx, 4
+    rep movsb
+    
+    ret
+GenerateFilename ENDP
+
+;-----------------------------------------------------------
+ConvertNumberToString PROC
+;
+; Converts a number to string and stores it in buffer
+; Input: EAX = number to convert
+;        EDI = buffer to store string
+;-----------------------------------------------------------
+    pushad
     mov ebx, 10
     mov ecx, 0
     
-    ; Handle zero case
-    cmp eax, 0
-    jne count_digits
-    mov byte ptr [edi], '0'
-    inc edi
-    jmp add_extension
-    
+    ; Count digits by repeatedly dividing by 10
 count_digits:
     xor edx, edx
     div ebx
@@ -1649,44 +1805,20 @@ write_digits:
     inc edi
     loop write_digits
     
-add_extension:
-    ; Add ".txt" extension
-    mov esi, OFFSET fileExtension
-    mov ecx, 4
-    rep movsb
-    
     mov byte ptr [edi], 0  ; Null terminate
+    popad
     ret
-GenerateFilename ENDP
+ConvertNumberToString ENDP
 
 ;-----------------------------------------------------------
-WriteStringToFile PROC USES eax ebx ecx edx esi
+WriteStringToFile PROC
 ;
-; Writes a string to file, handling both null-terminated and fixed-length strings
-; Input: EDX = pointer to string, ECX = maximum length (0 for null-terminated)
+; Writes a null-terminated string to file
+; Input: EDX = pointer to string
 ;-----------------------------------------------------------
-    ; If ECX is 0, treat as null-terminated string
-    cmp ecx, 0
-    je null_terminated
+    pushad
     
-    ; For fixed-length strings, find the actual length
-    mov esi, edx
-    mov ebx, ecx        ; Save max length
-    mov ecx, 0
-    
-count_chars_fixed:
-    cmp byte ptr [esi], 0
-    je done_count_fixed
-    inc esi
-    inc ecx
-    cmp ecx, ebx        ; Don't exceed max length
-    jb count_chars_fixed
-    
-done_count_fixed:
-    jmp write_to_file
-
-null_terminated:
-    ; Calculate string length for null-terminated string
+    ; Calculate string length
     mov esi, edx
     mov ecx, 0
 count_chars:
@@ -1697,285 +1829,55 @@ count_chars:
     jmp count_chars
     
 done_count:
-    ; Check if we have anything to write
-    cmp ecx, 0
-    je write_done
-    
-write_to_file:
-    ; Write to file using WriteFile API
-    push 0                      ; lpOverlapped = NULL
-    push OFFSET bytesWritten    ; lpNumberOfBytesWritten
-    push ecx                    ; nNumberOfBytesToWrite
-    push edx                    ; lpBuffer (string to write)
-    push fileHandle             ; hFile
-    call WriteFile
-    
-    test eax, eax              ; Check if WriteFile succeeded
-    jnz write_done
+    ; Write to file
+    mov eax, fileHandle
+    call WriteToFile
+    jnc write_ok
     
     ; Error handling
     mov edx, OFFSET writeFileError
     call WriteString
     call Crlf
     
-write_done:
+write_ok:
+    popad
     ret
 WriteStringToFile ENDP
+
 ;-----------------------------------------------------------
-WriteNewLineToFile PROC USES eax edx
+WriteNewLineToFile PROC
 ;
 ; Writes CR+LF to file
 ;-----------------------------------------------------------
-    ; Write CR+LF (0Dh, 0Ah)
-    push 0
-    push OFFSET bytesWritten
-    push 2                      ; 2 bytes to write
-    push OFFSET newline         ; CR+LF string
-    push fileHandle
-    call WriteFile
+    pushad
+    mov eax, fileHandle
+    mov edx, OFFSET newline
+    mov ecx, 2  ; CR+LF
+    call WriteToFile
+    popad
     ret
 WriteNewLineToFile ENDP
 
 ;-----------------------------------------------------------
-WriteIntToFile PROC USES eax ebx ecx edx edi
+WriteIntToFile PROC
 ;
 ; Writes an integer to the open file
 ; Input: EAX = integer to write
 ;-----------------------------------------------------------
+    pushad
     ; Convert number to string
     mov edi, OFFSET userInput  ; Use input buffer as temp storage
-    mov ebx, 10
-    mov ecx, 0
+    call ConvertNumberToString
     
-    ; Handle zero case
-    cmp eax, 0
-    jne convert_loop
-    mov byte ptr [edi], '0'
-    mov byte ptr [edi+1], 0
-    jmp write_number
-    
-convert_loop:
-    xor edx, edx
-    div ebx
-    add dl, '0'
-    push edx
-    inc ecx
-    test eax, eax
-    jnz convert_loop
-    
-    ; Pop digits into buffer
-    mov esi, edi
-pop_digits:
-    pop eax
-    mov [esi], al
-    inc esi
-    loop pop_digits
-    mov byte ptr [esi], 0
-    
-write_number:
     ; Write the string
     mov edx, OFFSET userInput
     call WriteStringToFile
+    popad
     ret
 WriteIntToFile ENDP
 
 ;-----------------------------------------------------------
-WriteAirlineNameToFile PROC USES eax edx
-;
-; Writes airline name to file based on selected flight
-;-----------------------------------------------------------
-    mov eax, selectedID
-    cmp eax, 1
-    je WriteAirline1
-    cmp eax, 2
-    je WriteAirline2
-    cmp eax, 3
-    je WriteAirline3
-    cmp eax, 4
-    je WriteAirline4
-    jmp WriteAirline5
-    
-WriteAirline1:
-    mov edx, OFFSET airline1
-    call WriteStringToFile
-    ret
-WriteAirline2:
-    mov edx, OFFSET airline2
-    call WriteStringToFile
-    ret
-WriteAirline3:
-    mov edx, OFFSET airline3
-    call WriteStringToFile
-    ret
-WriteAirline4:
-    mov edx, OFFSET airline4
-    call WriteStringToFile
-    ret
-WriteAirline5:
-    mov edx, OFFSET airline5
-    call WriteStringToFile
-    ret
-WriteAirlineNameToFile ENDP
-
-;-----------------------------------------------------------
-WriteRouteInfoToFile PROC USES eax ebx edx
-;
-; Writes route information to file
-;-----------------------------------------------------------
-    ; Write departure location
-    mov eax, selectedID
-    dec eax                     ; Convert to 0-based index
-    mov ebx, 13                 ; Each location string is 13 chars
-    mul ebx
-    mov edx, OFFSET departureLocations
-    add edx, eax
-    call WriteStringToFile
-    
-    mov edx, OFFSET arrowSymbol
-    call WriteStringToFile
-    
-    ; Write destination location
-    mov eax, selectedID
-    dec eax                     ; Convert to 0-based index
-    mov ebx, 10                 ; Each destination string is 10 chars
-    mul ebx
-    mov edx, OFFSET destinationLocations
-    add edx, eax
-    call WriteStringToFile
-    ret
-WriteRouteInfoToFile ENDP
-
-;-----------------------------------------------------------
-WriteDepartureDateToFile PROC USES eax ebx edx
-;
-; Writes departure date to file
-;-----------------------------------------------------------
-    mov eax, selectedID
-    dec eax                     ; Convert to 0-based index
-    mov ebx, 11                 ; Each date string is 11 chars (10 + null)
-    mul ebx
-    mov edx, OFFSET departureDates
-    add edx, eax
-    call WriteStringToFile
-    ret
-WriteDepartureDateToFile ENDP
-
-;-----------------------------------------------------------
-WriteClassInfoToFile PROC USES eax ebx edx
-;
-; Writes class information to file
-;-----------------------------------------------------------
-    mov eax, classPrice
-    mov ebx, basePrice
-    cmp eax, ebx
-    je WriteEconomy
-    
-    ; Business class
-    mov edx, OFFSET businessText
-    call WriteStringToFile
-    ret
-    
-WriteEconomy:
-    mov edx, OFFSET economyText
-    call WriteStringToFile
-    ret
-WriteClassInfoToFile ENDP
-
-;-----------------------------------------------------------
-WriteInsuranceInfoToFile PROC USES edx
-;
-; Writes insurance information to file
-;-----------------------------------------------------------
-    cmp insPrice, 0
-    je WriteNoInsurance
-    
-    ; Has insurance
-    mov edx, OFFSET yesText
-    call WriteStringToFile
-    ret
-    
-WriteNoInsurance:
-    mov edx, OFFSET noText
-    call WriteStringToFile
-    ret
-WriteInsuranceInfoToFile ENDP
-
-;-----------------------------------------------------------
-WritePaymentMethodToFile PROC USES edx
-;
-; Writes payment method to file
-;-----------------------------------------------------------
-    cmp paymentMethod, 1
-    je WriteCreditCard
-    
-    ; E-wallet
-    mov edx, OFFSET ewalletText
-    call WriteStringToFile
-    ret
-    
-WriteCreditCard:
-    mov edx, OFFSET creditCardText
-    call WriteStringToFile
-    ret
-WritePaymentMethodToFile ENDP
-
-;-----------------------------------------------------------
-;-----------------------------------------------------------
-WritePassengerNamesToFile PROC USES eax ebx ecx edx esi edi
-;
-; Writes passenger names to file - FIXED VERSION
-;-----------------------------------------------------------
-    mov ecx, pax
-    mov esi, 0
-    
-PassengerFileLoop:
-    push ecx
-    
-    ; Write passenger number
-    mov eax, esi
-    inc eax
-    call WriteIntToFile
-    mov edx, OFFSET dotSpace
-    call WriteStringToFile
-    
-    ; Calculate proper offset for passenger name
-    mov eax, esi
-    mov ebx, NAME_SIZE
-    mul ebx
-    mov edx, OFFSET passengerNames
-    add edx, eax
-    
-    ; DEBUG: Let's see what's in the name buffer
-    ; First, find the actual length of the name
-    push edi
-    push ecx
-    mov edi, edx
-    mov ecx, NAME_SIZE
-    mov al, 0
-    repne scasb           ; Find the null terminator
-    sub edi, edx          ; Calculate length including null
-    dec edi               ; Exclude the null terminator
-    
-    ; Write the actual name bytes using direct WriteFile call
-    push 0                      ; lpOverlapped = NULL
-    push OFFSET bytesWritten    ; lpNumberOfBytesWritten
-    push edi                    ; nNumberOfBytesToWrite (actual length)
-    push edx                    ; lpBuffer (string to write)
-    push fileHandle             ; hFile
-    call WriteFile
-    
-    call WriteNewLineToFile
-    
-    pop ecx
-    pop edi
-    pop ecx
-    inc esi
-    loop PassengerFileLoop
-    
-    ret
-WritePassengerNamesToFile ENDP
-
-SaveTicketToFile PROC USES eax ebx ecx edx esi edi
+SaveTicketToFile PROC
 ;
 ; Saves the current ticket to a text file using CreateOutputFile
 ;-----------------------------------------------------------
@@ -2090,8 +1992,8 @@ file_ok:
     call WriteNewLineToFile
     call WriteNewLineToFile
     
-    ; Write all passenger details using the fixed procedure
-    call WritePassengerNamesToFile
+    ; Write all passenger details
+    call WritePassengersToFile
     call WriteNewLineToFile
     
     ; Write payment information
@@ -2142,5 +2044,589 @@ file_ok:
     
     ret
 SaveTicketToFile ENDP
+
+;-----------------------------------------------------------
+WriteAirlineNameToFile PROC
+;
+; Writes airline name to file based on selected flight
+;-----------------------------------------------------------
+    mov eax, selectedID
+    call DisplayAirlineName
+    ret
+WriteAirlineNameToFile ENDP
+
+;-----------------------------------------------------------
+WriteRouteInfoToFile PROC
+;
+; Writes route information to file
+;-----------------------------------------------------------
+    call DisplayRouteInfo
+    ret
+WriteRouteInfoToFile ENDP
+
+;-----------------------------------------------------------
+WriteDepartureDateToFile PROC
+;
+; Writes departure date to file
+;-----------------------------------------------------------
+    call DisplayDepartureDate
+    ret
+WriteDepartureDateToFile ENDP
+
+;-----------------------------------------------------------
+WriteClassInfoToFile PROC
+;
+; Writes class information to file
+;-----------------------------------------------------------
+    call DisplayClassInfo
+    ret
+WriteClassInfoToFile ENDP
+
+;-----------------------------------------------------------
+WriteInsuranceInfoToFile PROC
+;
+; Writes insurance information to file
+;-----------------------------------------------------------
+    call DisplayInsuranceInfo
+    ret
+WriteInsuranceInfoToFile ENDP
+
+;-----------------------------------------------------------
+WritePassengersToFile PROC
+;
+; Writes all passenger information to file
+;-----------------------------------------------------------
+    mov ecx, pax
+    mov esi, 0
+    
+PassengerFileLoop:
+    push ecx
+    
+    ; Write passenger number
+    mov eax, esi
+    inc eax
+    call WriteIntToFile
+    mov edx, OFFSET dotSpace
+    call WriteStringToFile
+    
+    ; Write passenger name
+    mov eax, esi
+    mov ebx, NAME_SIZE
+    mul ebx
+    mov edx, OFFSET passengerNames
+    add edx, eax
+    call WriteStringToFile
+    
+    ; Write seat information
+    mov edx, OFFSET seatInfoLabel
+    call WriteStringToFile
+    mov eax, [passengerSeatRows + esi*4]
+    call WriteIntToFile
+    
+    ; Write seat column character
+    mov al, [passengerSeatColumns + esi]
+    mov tempChar, al
+    mov tempChar+1, 0  ; null terminate
+    mov edx, OFFSET tempChar
+    call WriteStringToFile
+    
+    mov edx, OFFSET closeParen
+    call WriteStringToFile
+    call WriteNewLineToFile
+    
+    pop ecx
+    inc esi
+    loop PassengerFileLoop
+    
+    ret
+WritePassengersToFile ENDP
+
+;-----------------------------------------------------------
+WritePaymentMethodToFile PROC
+;
+; Writes payment method to file
+; MODULE DONE BY ZHEN YU
+;-----------------------------------------------------------
+    call DisplayPaymentMethod
+    ret
+WritePaymentMethodToFile ENDP
+
+;-----------------------------------------------------------
+SeatSelectionModule PROC
+;
+;Handles seat selection for all passengers
+;-----------------------------------------------------------
+    call Clrscr
+    call DisplaySeatMap
+    call Crlf
+    
+    ; Get number of passengers first
+GetPaxCount:
+    call Crlf
+    mov edx, OFFSET promptPax
+    call WriteString
+    call ReadInt
+    
+    cmp eax, 1
+    jl InvalidPaxInput
+    cmp eax, MAX_PASSENGERS
+    jg InvalidPaxInput
+    mov pax, eax
+    jmp StartSeatSelection
+
+InvalidPaxInput:
+    mov edx, OFFSET errPaxMsg
+    call WriteString
+    jmp GetPaxCount
+
+StartSeatSelection:
+    mov ecx, pax
+    mov esi, 0
+    
+SeatSelectionLoop:
+    push ecx
+    
+    ; Display passenger info
+    mov edx, OFFSET promptName
+    call WriteString
+    mov eax, esi
+    inc eax
+    call WriteDec
+    mov al, ':'
+    call WriteChar
+    call Crlf
+    
+GetRowInput:
+    mov edx, OFFSET SeatRow
+    call WriteString
+    call ReadInt
+    
+    cmp eax, 1
+    jl InvalidRow
+    cmp eax, 20
+    jg InvalidRow
+    mov selectedRow, eax
+    jmp GetColumnInput
+    
+InvalidRow:
+    mov edx, OFFSET seatInvalidMsg
+    call WriteString
+    call Crlf
+    jmp GetRowInput
+    
+GetColumnInput:
+    mov edx, OFFSET SeatColumn
+    call WriteString
+    call ReadChar
+    mov bl, al      ; Save the character before consuming enter
+    call WriteChar  ; Echo the character back to user
+    call ReadChar   ; consume enter
+    call Crlf       ; Move to next line
+    mov al, bl      ; Restore the character
+    
+    ; Convert to uppercase
+    cmp al, 'a'
+    jb CheckValidColumn
+    cmp al, 'z'
+    ja CheckValidColumn
+    sub al, 32
+    
+CheckValidColumn:
+    cmp al, 'A'
+    jb InvalidColumn
+    cmp al, 'F'
+    ja InvalidColumn
+    mov selectedColumn, al
+    
+    ; Check if seat is available
+    call CheckSeatAvailability
+    cmp eax, 0
+    je SeatTaken
+    
+    ; Mark seat as taken
+    call MarkSeatTaken
+    
+    ; Store seat information for this passenger
+    mov eax, selectedRow
+    mov ebx, esi
+    mov [passengerSeatRows + ebx*4], eax
+    mov al, selectedColumn
+    mov [passengerSeatColumns + ebx], al
+    
+    ; Confirm selection and update display
+    call Clrscr
+    call DisplaySeatMap
+    call Crlf
+    
+    mov edx, OFFSET seatConfirmMsg
+    call WriteString
+    mov eax, selectedRow
+    call WriteDec
+    mov al, selectedColumn
+    call WriteChar
+    mov edx, OFFSET seatConfirmMsg2
+    call WriteString
+    mov eax, esi
+    inc eax
+    call WriteDec
+    call Crlf
+    call Crlf
+    
+    jmp NextPassenger
+    
+InvalidColumn:
+    mov edx, OFFSET seatInvalidMsg
+    call WriteString
+    call Crlf
+    jmp GetColumnInput
+    
+SeatTaken:
+    mov edx, OFFSET seatTakenMsg
+    call WriteString
+    call Crlf
+    jmp GetRowInput
+    
+NextPassenger:
+    pop ecx
+    inc esi
+    dec ecx
+    jnz SeatSelectionLoop
+    
+    ret
+SeatSelectionModule ENDP
+
+;-----------------------------------------------------------
+DisplaySeatMap PROC
+;
+; Displays the current seat map
+;-----------------------------------------------------------
+    mov edx, OFFSET FlightSeat1
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat2
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat3
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat4
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat5
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat6
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat7
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat8
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat9
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat10
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat11
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat12
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat13
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat14
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat15
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat16
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat17
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat18
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat19
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat20
+    call WriteString
+    call Crlf
+    mov edx, OFFSET FlightSeat21
+    call WriteString
+    call Crlf
+    ret
+DisplaySeatMap ENDP
+
+;-----------------------------------------------------------
+CheckSeatAvailability PROC
+;
+; Checks if selected seat is available
+;-----------------------------------------------------------
+    ; Calculate column offset (A=0, B=2, C=4, D=6, E=8, F=10)
+    mov al, selectedColumn
+    sub al, 'A'
+    movzx eax, al
+    mov ebx, 2
+    mul ebx
+    add eax, 3  ; Start position after "01 "
+    
+    ; Get correct row based on selectedRow
+    mov ebx, selectedRow
+    
+    cmp ebx, 1
+    je CheckSeat2
+    cmp ebx, 2
+    je CheckSeat3
+    cmp ebx, 3
+    je CheckSeat4
+    cmp ebx, 4
+    je CheckSeat5
+    cmp ebx, 5
+    je CheckSeat6
+    cmp ebx, 6
+    je CheckSeat7
+    cmp ebx, 7
+    je CheckSeat8
+    cmp ebx, 8
+    je CheckSeat9
+    cmp ebx, 9
+    je CheckSeat10
+    cmp ebx, 10
+    je CheckSeat11
+    cmp ebx, 11
+    je CheckSeat12
+    cmp ebx, 12
+    je CheckSeat13
+    cmp ebx, 13
+    je CheckSeat14
+    cmp ebx, 14
+    je CheckSeat15
+    cmp ebx, 15
+    je CheckSeat16
+    cmp ebx, 16
+    je CheckSeat17
+    cmp ebx, 17
+    je CheckSeat18
+    cmp ebx, 18
+    je CheckSeat19
+    cmp ebx, 19
+    je CheckSeat20
+    cmp ebx, 20
+    je CheckSeat21
+    jmp SeatNotAvailable
+    
+CheckSeat2:
+    mov edx, OFFSET FlightSeat2
+    jmp CheckSeatPosition
+CheckSeat3:
+    mov edx, OFFSET FlightSeat3
+    jmp CheckSeatPosition
+CheckSeat4:
+    mov edx, OFFSET FlightSeat4
+    jmp CheckSeatPosition
+CheckSeat5:
+    mov edx, OFFSET FlightSeat5
+    jmp CheckSeatPosition
+CheckSeat6:
+    mov edx, OFFSET FlightSeat6
+    jmp CheckSeatPosition
+CheckSeat7:
+    mov edx, OFFSET FlightSeat7
+    jmp CheckSeatPosition
+CheckSeat8:
+    mov edx, OFFSET FlightSeat8
+    jmp CheckSeatPosition
+CheckSeat9:
+    mov edx, OFFSET FlightSeat9
+    jmp CheckSeatPosition
+CheckSeat10:
+    mov edx, OFFSET FlightSeat10
+    jmp CheckSeatPosition
+CheckSeat11:
+    mov edx, OFFSET FlightSeat11
+    jmp CheckSeatPosition
+CheckSeat12:
+    mov edx, OFFSET FlightSeat12
+    jmp CheckSeatPosition
+CheckSeat13:
+    mov edx, OFFSET FlightSeat13
+    jmp CheckSeatPosition
+CheckSeat14:
+    mov edx, OFFSET FlightSeat14
+    jmp CheckSeatPosition
+CheckSeat15:
+    mov edx, OFFSET FlightSeat15
+    jmp CheckSeatPosition
+CheckSeat16:
+    mov edx, OFFSET FlightSeat16
+    jmp CheckSeatPosition
+CheckSeat17:
+    mov edx, OFFSET FlightSeat17
+    jmp CheckSeatPosition
+CheckSeat18:
+    mov edx, OFFSET FlightSeat18
+    jmp CheckSeatPosition
+CheckSeat19:
+    mov edx, OFFSET FlightSeat19
+    jmp CheckSeatPosition
+CheckSeat20:
+    mov edx, OFFSET FlightSeat20
+    jmp CheckSeatPosition
+CheckSeat21:
+    mov edx, OFFSET FlightSeat21
+    
+CheckSeatPosition:
+    add edx, eax
+    mov al, [edx]
+    ; Debug: Let's be more explicit about what we're checking
+    cmp al, 'O'    ; Available seat
+    je SeatAvailable
+    cmp al, 'X'    ; Taken seat  
+    je SeatNotAvailable
+    ; If it's neither O nor X, treat as available for now
+    jmp SeatAvailable
+    
+SeatAvailable:
+    mov eax, 1
+    ret
+    
+SeatNotAvailable:
+    mov eax, 0
+    ret
+CheckSeatAvailability ENDP
+
+;-----------------------------------------------------------
+MarkSeatTaken PROC
+;
+; Marks the selected seat as taken (X)
+;-----------------------------------------------------------
+
+    ; Calculate column offset
+    mov al, selectedColumn
+    sub al, 'A'
+    movzx eax, al
+    mov ebx, 2
+    mul ebx
+    add eax, 3
+    
+    ; Get correct row
+    mov ebx, selectedRow
+    
+    cmp ebx, 1
+    je MarkSeat2
+    cmp ebx, 2
+    je MarkSeat3
+    cmp ebx, 3
+    je MarkSeat4
+    cmp ebx, 4
+    je MarkSeat5
+    cmp ebx, 5
+    je MarkSeat6
+    cmp ebx, 6
+    je MarkSeat7
+    cmp ebx, 7
+    je MarkSeat8
+    cmp ebx, 8
+    je MarkSeat9
+    cmp ebx, 9
+    je MarkSeat10
+    cmp ebx, 10
+    je MarkSeat11
+    cmp ebx, 11
+    je MarkSeat12
+    cmp ebx, 12
+    je MarkSeat13
+    cmp ebx, 13
+    je MarkSeat14
+    cmp ebx, 14
+    je MarkSeat15
+    cmp ebx, 15
+    je MarkSeat16
+    cmp ebx, 16
+    je MarkSeat17
+    cmp ebx, 17
+    je MarkSeat18
+    cmp ebx, 18
+    je MarkSeat19
+    cmp ebx, 19
+    je MarkSeat20
+    cmp ebx, 20
+    je MarkSeat21
+    ret
+    
+MarkSeat2:
+    mov edx, OFFSET FlightSeat2
+    jmp MarkSeatPosition
+MarkSeat3:
+    mov edx, OFFSET FlightSeat3
+    jmp MarkSeatPosition
+MarkSeat4:
+    mov edx, OFFSET FlightSeat4
+    jmp MarkSeatPosition
+MarkSeat5:
+    mov edx, OFFSET FlightSeat5
+    jmp MarkSeatPosition
+MarkSeat6:
+    mov edx, OFFSET FlightSeat6
+    jmp MarkSeatPosition
+MarkSeat7:
+    mov edx, OFFSET FlightSeat7
+    jmp MarkSeatPosition
+MarkSeat8:
+    mov edx, OFFSET FlightSeat8
+    jmp MarkSeatPosition
+MarkSeat9:
+    mov edx, OFFSET FlightSeat9
+    jmp MarkSeatPosition
+MarkSeat10:
+    mov edx, OFFSET FlightSeat10
+    jmp MarkSeatPosition
+MarkSeat11:
+    mov edx, OFFSET FlightSeat11
+    jmp MarkSeatPosition
+MarkSeat12:
+    mov edx, OFFSET FlightSeat12
+    jmp MarkSeatPosition
+MarkSeat13:
+    mov edx, OFFSET FlightSeat13
+    jmp MarkSeatPosition
+MarkSeat14:
+    mov edx, OFFSET FlightSeat14
+    jmp MarkSeatPosition
+MarkSeat15:
+    mov edx, OFFSET FlightSeat15
+    jmp MarkSeatPosition
+MarkSeat16:
+    mov edx, OFFSET FlightSeat16
+    jmp MarkSeatPosition
+MarkSeat17:
+    mov edx, OFFSET FlightSeat17
+    jmp MarkSeatPosition
+MarkSeat18:
+    mov edx, OFFSET FlightSeat18
+    jmp MarkSeatPosition
+MarkSeat19:
+    mov edx, OFFSET FlightSeat19
+    jmp MarkSeatPosition
+MarkSeat20:
+    mov edx, OFFSET FlightSeat20
+    jmp MarkSeatPosition
+MarkSeat21:
+    mov edx, OFFSET FlightSeat21
+    
+MarkSeatPosition:
+    add edx, eax
+    mov BYTE PTR [edx], 'X'
+    ret
+MarkSeatTaken ENDP
 
 END main
